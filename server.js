@@ -138,7 +138,7 @@ app.post("/register", (req, res) => {
       // 2. إعداد الرسالة
       const msg = {
         to: email, // البريد الذي أدخله المستخدم
-        from: "YOUR_VERIFIED_EMAIL@example.com", // <-- ضع إيميلك الذي أثبته في SendGrid
+        from: "hassomalshayeb@gmail.com", // <-- ضع إيميلك الذي أثبته في SendGrid
         subject: "تذكرتك الإلكترونية جاهزة!",
         html: `
       <div dir="rtl" style="text-align: right; font-family: Arial;">
