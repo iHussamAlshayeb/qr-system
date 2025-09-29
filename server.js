@@ -23,6 +23,14 @@ app.use(
 app.use(express.urlencoded({ extended: true }));
 const port = process.env.PORT || 3000; // سنشغل الخادم على هذا المنفذ
 
+// Middleware للتحقق مما إذا كان المستخدم موظفًا مسجلاً
+const checkAuth = (req, res, next) => {
+  if (req.session.isLoggedIn) {
+    next(); // إذا كان مسجلاً، اسمح له بالمرور
+  } else {
+    res.redirect("/login"); // إذا لم يكن، أعد توجيهه لصفحة الدخول
+  }
+};
 // 3. تحديد ما سيحدث عند زيارة الصفحة الرئيسية
 // req = الطلب القادم من المتصفح
 // res = الرد الذي سنرسله للمتصفح
@@ -152,14 +160,6 @@ app.get('/admin', checkAuth, (req, res) => {
   });
 });
 
-// Middleware للتحقق مما إذا كان المستخدم موظفًا مسجلاً
-const checkAuth = (req, res, next) => {
-  if (req.session.isLoggedIn) {
-    next(); // إذا كان مسجلاً، اسمح له بالمرور
-  } else {
-    res.redirect("/login"); // إذا لم يكن، أعد توجيهه لصفحة الدخول
-  }
-};
 
 app.post("/register", (req, res) => {
   const { name, email } = req.body;
