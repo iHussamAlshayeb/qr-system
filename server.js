@@ -7,6 +7,7 @@ const qr = require("qrcode"); // لاستيراد مكتبة QR Code
 // const nodemailer = require("nodemailer");
 const sgMail = require("@sendgrid/mail");
 const session = require("express-session");
+const { Resend } = require("resend");
 
 // 2. إنشاء تطبيق Express
 const app = express();
@@ -74,33 +75,39 @@ app.get("/scanner", (req, res) => {
 });
 
 // لعرض صفحة لوحة التحكم والإحصائيات
-app.get('/admin', checkAuth, (req, res) => {
+app.get("/admin", checkAuth, (req, res) => {
   const sqlTotal = `SELECT COUNT(*) as total FROM registrations`;
   const sqlAttended = `SELECT COUNT(*) as attended FROM registrations WHERE status = 'USED'`;
   const sqlAllUsers = `SELECT name, email, status, created_at FROM registrations ORDER BY created_at DESC`;
 
   // 1. جلب العدد الإجمالي للمسجلين
   db.get(sqlTotal, [], (err, totalRow) => {
-    if (err) return res.status(500).send('خطأ في جلب البيانات');
+    if (err) return res.status(500).send("خطأ في جلب البيانات");
 
     // 2. جلب عدد الحضور
     db.get(sqlAttended, [], (err, attendedRow) => {
-      if (err) return res.status(500).send('خطأ في جلب البيانات');
+      if (err) return res.status(500).send("خطأ في جلب البيانات");
 
       // 3. جلب قائمة كل المسجلين
       db.all(sqlAllUsers, [], (err, users) => {
-        if (err) return res.status(500).send('خطأ في جلب البيانات');
+        if (err) return res.status(500).send("خطأ في جلب البيانات");
 
         // 4. بناء وإرسال صفحة HTML الديناميكية
         const pageTitle = "لوحة التحكم";
-        let userRows = users.map(user => `
+        let userRows = users
+          .map(
+            (user) => `
           <tr>
             <td>${user.name}</td>
             <td>${user.email}</td>
-            <td class="${user.status.toLowerCase()}">${user.status === 'USED' ? 'حضر' : 'لم يحضر'}</td>
-            <td>${new Date(user.created_at).toLocaleString('ar-SA')}</td>
+            <td class="${user.status.toLowerCase()}">${
+              user.status === "USED" ? "حضر" : "لم يحضر"
+            }</td>
+            <td>${new Date(user.created_at).toLocaleString("ar-SA")}</td>
           </tr>
-        `).join('');
+        `
+          )
+          .join("");
 
         res.send(`
           <!DOCTYPE html>
@@ -160,7 +167,6 @@ app.get('/admin', checkAuth, (req, res) => {
   });
 });
 
-
 app.post("/register", (req, res) => {
   const { name, email } = req.body;
   const ticketId = uuidv4();
@@ -219,35 +225,63 @@ app.post("/register", (req, res) => {
 
       // --- ابدأ بالكود الجديد من هنا ---
 
-      // 1. إعداد مفتاح API الخاص بـ SendGrid
-      sgMail.setApiKey(process.env.SENDGRID_API_KEY); // سنقوم بإعداد هذا المتغير لاحقاً
+      //   // 1. إعداد مفتاح API الخاص بـ SendGrid
+      //   sgMail.setApiKey(process.env.SENDGRID_API_KEY); // سنقوم بإعداد هذا المتغير لاحقاً
 
-      // 2. إعداد الرسالة
-      const msg = {
-        to: email, // البريد الذي أدخله المستخدم
-        from: "hassomalshayeb@gmail.com", // <-- ضع إيميلك الذي أثبته في SendGrid
-        subject: "تذكرتك الإلكترونية جاهزة!",
-        html: `
+      //   // 2. إعداد الرسالة
+      //   const msg = {
+      //     to: email, // البريد الذي أدخله المستخدم
+      //     from: "hassomalshayeb@gmail.com", // <-- ضع إيميلك الذي أثبته في SendGrid
+      //     subject: "تذكرتك الإلكترونية جاهزة!",
+      //     html: `
+      //   <div dir="rtl" style="text-align: right; font-family: Arial;">
+      //     <h1>أهلاً بك، ${name}!</h1>
+      //     <p>شكرًا لتسجيلك. هذه هي تذكرتك التي تحتوي على رمز الدخول.</p>
+      //     <img src="${qrCodeUrl}" alt="QR Code">
+      //   </div>
+      // `,
+      //   };
+
+      //   // 3. إرسال الإيميل
+      //   sgMail
+      //     .send(msg)
+      //     .then(() => {
+      //       console.log("Email sent successfully via SendGrid");
+      //     })
+      //     .catch((error) => {
+      //       console.error(
+      //         "Error sending email via SendGrid:",
+      //         error.response.body
+      //       );
+      //     });
+
+      // --- انتهى الكود الجديد ---
+
+      // --- ابدأ بالكود الجديد من هنا ---
+
+      // 1. إعداد Resend باستخدام مفتاح API
+      const resend = new Resend(process.env.RESEND_API_KEY);
+
+      // 2. إرسال الإيميل (لاحظ كم هو أبسط!)
+      resend.emails
+        .send({
+          from: "you@yourverifieddomain.com", // <-- استخدم إيميل من نطاقك الذي أثبته
+          to: email, // البريد الذي أدخله المستخدم
+          subject: "تذكرتك الإلكترونية جاهزة!",
+          html: `
       <div dir="rtl" style="text-align: right; font-family: Arial;">
         <h1>أهلاً بك، ${name}!</h1>
         <p>شكرًا لتسجيلك. هذه هي تذكرتك التي تحتوي على رمز الدخول.</p>
         <img src="${qrCodeUrl}" alt="QR Code">
       </div>
     `,
-      };
-
-      // 3. إرسال الإيميل
-      sgMail
-        .send(msg)
-        .then(() => {
-          console.log("Email sent successfully via SendGrid");
         })
-        .catch((error) => {
-          console.error(
-            "Error sending email via SendGrid:",
-            error.response.body
-          );
-        });
+        .then((response) =>
+          console.log("Email sent successfully via Resend:", response)
+        )
+        .catch((error) =>
+          console.error("Error sending email via Resend:", error)
+        );
 
       // --- انتهى الكود الجديد ---
 

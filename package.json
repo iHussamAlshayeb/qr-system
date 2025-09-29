@@ -17,6 +17,7 @@
     "express-session": "^1.18.2",
     "nodemailer": "^7.0.6",
     "qrcode": "^1.5.4",
+    "resend": "^6.1.1",
     "sqlite3": "^5.1.7",
     "uuid": "^13.0.0"
   }
