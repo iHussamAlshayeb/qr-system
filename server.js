@@ -21,99 +21,73 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));
 });
 
-// نقطة استقبال بيانات الفورم عند إرسالها
-app.post("/register", (req, res) => {
-  // 1. استخراج البيانات من الطلب
+app.post('/register', (req, res) => {
   const { name, email } = req.body;
-
-  // 2. إنشاء رمز تذكرة فريد
   const ticketId = uuidv4();
 
-  // 3. تعريف أمر SQL لإدخال البيانات في الجدول
   const sql = `INSERT INTO registrations (name, email, ticket_id) VALUES (?, ?, ?)`;
   const params = [name, email, ticketId];
 
-  // 4. تنفيذ الأمر لحفظ البيانات في قاعدة البيانات
-  db.run(sql, params, function (err) {
+  db.run(sql, params, function(err) {
     if (err) {
-      // في حال حدوث خطأ (مثل إيميل مكرر)
-      console.error(err.message);
-      return res
-        .status(400)
-        .send("حدث خطأ. قد يكون هذا البريد الإلكتروني مسجلاً من قبل.");
+      console.error("Database error:", err.message);
+      // إذا حدث خطأ في قاعدة البيانات، أرسل هذا الرد وتوقف هنا
+      return res.status(400).send('حدث خطأ. قد يكون هذا البريد الإلكتروني مسجلاً من قبل.');
     }
 
-    // 5. إذا نجح الحفظ، نقوم بإنشاء QR Code
-    console.log(`تم تسجيل مستخدم جديد بنجاح. ID التذكرة: ${ticketId}`);
-
-    // الرابط الذي سيتم تضمينه في الـ QR Code
-    const verificationUrl = `https://qr-system-app.onrender.com/verify/${ticketId}`;
-
-    qr.toDataURL(verificationUrl, (err, qrCodeUrl) => {
-      if (err) {
-        return res.send("تم التسجيل، ولكن حدث خطأ أثناء إنشاء QR Code.");
+    console.log(`User registered successfully. Ticket ID: ${ticketId}`);
+    
+    const verificationUrl = `${process.env.RENDER_EXTERNAL_URL || 'http://localhost:3000'}/verify/${ticketId}`;
+    
+    qr.toDataURL(verificationUrl, (qrErr, qrCodeUrl) => {
+      if (qrErr) {
+        console.error("QR Code generation error:", qrErr);
+        // إذا حدث خطأ في إنشاء الرمز، أرسل هذا الرد وتوقف هنا
+        return res.status(500).send('تم التسجيل، ولكن حدث خطأ أثناء إنشاء QR Code.');
       }
 
-      // 1. إعداد المرسل (استخدم إيميلك وكلمة مرور التطبيقات)
+      // إعداد الإيميل
       const transporter = nodemailer.createTransport({
-        service: "gmail",
+        service: 'gmail',
         auth: {
-          user: "hassomalshayeb@gmail.com", // <-- ضع إيميلك هنا
-          pass: "nzgmemuozzwjwnhq", // <-- ضع كلمة مرور التطبيقات هنا
-        },
-      });
-
-      // 2. محتوى الرسالة
-      const mailOptions = {
-        from: '"اسم الحدث او الشركة" <hassomalshayeb@gmail.com>',
-        to: email, // الإيميل الذي أدخله المستخدم
-        subject: "تذكرتك الإلكترونية جاهزة!",
-        html: `
-      <div dir="rtl" style="text-align: right; font-family: Arial;">
-        <h1>أهلاً بك، ${name}!</h1>
-        <p>شكرًا لتسجيلك. هذه هي تذكرتك التي تحتوي على رمز الدخول.</p>
-        <p>يرجى إظهار هذا الرمز عند الحضور.</p>
-        <img src="${qrCodeUrl}" alt="QR Code">
-      </div>
-    `,
-      };
-
-      // 3. إرسال الإيميل
-      transporter.sendMail(mailOptions, (error, info) => {
-        if (error) {
-          console.error("خطأ في إرسال الإيميل:", error);
-        } else {
-          console.log("تم إرسال الإيميل بنجاح:", info.response);
+          user: 'hassomalshayeb@gmail.com', // <-- ضع إيميلك هنا
+          pass: 'nzgmemuozzwjwnhq'  // <-- ضع كلمة مرور التطبيقات هنا
         }
       });
 
-      // --- انتهى الكود الجديد ---
+      const mailOptions = {
+        from: '"اسم الحدث او الشركة" <hassomalshayeb@gmail.com>',
+        to: email,
+        subject: 'تذكرتك الإلكترونية جاهزة!',
+        html: `<div dir="rtl" style="text-align: right; font-family: Arial;"><h1>أهلاً بك، ${name}!</h1><p>شكرًا لتسجيلك. هذه هي تذكرتك التي تحتوي على رمز الدخول.</p><img src="${qrCodeUrl}" alt="QR Code"></div>`
+      };
 
-      // عرض صفحة النجاح للمستخدم (مع زر التحميل الجديد)
-      res.send(`
-    <div style="text-align: center; font-family: Arial;">
-      <h1>تم التسجيل بنجاح!</h1>
-      <p>شكرًا لك، ${name}. لقد أرسلنا التذكرة إلى بريدك الإلكتروني.</p>
-      <img src="${qrCodeUrl}" alt="QR Code">
-      <br><br>
-      <a href="${qrCodeUrl}" download="ticket-qrcode.png" style="padding: 10px 20px; background-color: #28a745; color: white; text-decoration: none; border-radius: 5px;">
-        تحميل الـ QR Code
-      </a>
-    </div>
-  `);
-
-      // 6. إرسال صفحة نجاح تحتوي على الـ QR Code للمستخدم
-      res.send(`
+      // إرسال الإيميل (لا ننتظر الرد منه)
+      transporter.sendMail(mailOptions, (mailErr, info) => {
+        if (mailErr) {
+          console.error('Error sending email:', mailErr);
+        } else {
+          console.log('Email sent successfully:', info.response);
+        }
+      });
+      
+      // أرسل رد النجاح النهائي للمتصفح
+      // هذا هو الرد الوحيد الذي يجب أن يصل في حالة النجاح
+      res.status(200).send(`
         <div style="text-align: center; font-family: Arial;">
           <h1>تم التسجيل بنجاح!</h1>
-          <p>شكرًا لك، ${name}. هذه هي تذكرتك الإلكترونية.</p>
-          <p>يرجى إظهار هذا الرمز عند الدخول.</p>
+          <p>شكرًا لك، ${name}. لقد أرسلنا التذكرة إلى بريدك الإلكتروني.</p>
           <img src="${qrCodeUrl}" alt="QR Code">
+          <br><br>
+          <a href="${qrCodeUrl}" download="ticket-qrcode.png" style="padding: 10px 20px; background-color: #28a745; color: white; text-decoration: none; border-radius: 5px;">
+            تحميل الـ QR Code
+          </a>
         </div>
       `);
     });
   });
 });
+
 
 // نقطة التحقق من التذكرة عند مسح الـ QR Code
 app.get("/verify/:ticketId", (req, res) => {
@@ -170,5 +144,5 @@ app.get("/verify/:ticketId", (req, res) => {
 
 // 4. تشغيل الخادم ليكون جاهزاً لاستقبال الزوار
 app.listen(port, () => {
-  console.log(`https://qr-system-app.onrender.com:${port}`);
+  console.log(`${process.env.RENDER_EXTERNAL_URL}:${port}`);
 });
