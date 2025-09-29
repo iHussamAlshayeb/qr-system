@@ -4,7 +4,8 @@ const db = require("./database.js");
 const path = require("path");
 const { v4: uuidv4 } = require("uuid"); // لاستيراد وظيفة إنشاء الرموز
 const qr = require("qrcode"); // لاستيراد مكتبة QR Code
-const nodemailer = require("nodemailer");
+// const nodemailer = require("nodemailer");
+const sgMail = require("@sendgrid/mail");
 const session = require("express-session");
 
 // 2. إنشاء تطبيق Express
@@ -104,30 +105,64 @@ app.post("/register", (req, res) => {
           .send("تم التسجيل، ولكن حدث خطأ أثناء إنشاء QR Code.");
       }
 
-      // إعداد الإيميل
-      const transporter = nodemailer.createTransport({
-        service: "gmail",
-        auth: {
-          user: "hassomalshayeb@gmail.com", // <-- ضع إيميلك هنا
-          pass: "nzgmemuozzwjwnhq", // <-- ضع كلمة مرور التطبيقات هنا
-        },
-      });
+      // // إعداد الإيميل
+      // const transporter = nodemailer.createTransport({
+      //   service: "gmail",
+      //   auth: {
+      //     user: "hassomalshayeb@gmail.com", // <-- ضع إيميلك هنا
+      //     pass: "nzgmemuozzwjwnhq", // <-- ضع كلمة مرور التطبيقات هنا
+      //   },
+      // });
 
-      const mailOptions = {
-        from: '"اسم الحدث او الشركة" <hassomalshayeb@gmail.com>',
-        to: email,
+      // const mailOptions = {
+      //   from: '"اسم الحدث او الشركة" <hassomalshayeb@gmail.com>',
+      //   to: email,
+      //   subject: "تذكرتك الإلكترونية جاهزة!",
+      //   html: `<div dir="rtl" style="text-align: right; font-family: Arial;"><h1>أهلاً بك، ${name}!</h1><p>شكرًا لتسجيلك. هذه هي تذكرتك التي تحتوي على رمز الدخول.</p><img src="${qrCodeUrl}" alt="QR Code"></div>`,
+      // };
+
+      // // إرسال الإيميل (لا ننتظر الرد منه)
+      // transporter.sendMail(mailOptions, (mailErr, info) => {
+      //   if (mailErr) {
+      //     console.error("Error sending email:", mailErr);
+      //   } else {
+      //     console.log("Email sent successfully:", info.response);
+      //   }
+      // });
+
+      // --- ابدأ بالكود الجديد من هنا ---
+
+      // 1. إعداد مفتاح API الخاص بـ SendGrid
+      sgMail.setApiKey(process.env.SENDGRID_API_KEY); // سنقوم بإعداد هذا المتغير لاحقاً
+
+      // 2. إعداد الرسالة
+      const msg = {
+        to: email, // البريد الذي أدخله المستخدم
+        from: "YOUR_VERIFIED_EMAIL@example.com", // <-- ضع إيميلك الذي أثبته في SendGrid
         subject: "تذكرتك الإلكترونية جاهزة!",
-        html: `<div dir="rtl" style="text-align: right; font-family: Arial;"><h1>أهلاً بك، ${name}!</h1><p>شكرًا لتسجيلك. هذه هي تذكرتك التي تحتوي على رمز الدخول.</p><img src="${qrCodeUrl}" alt="QR Code"></div>`,
+        html: `
+      <div dir="rtl" style="text-align: right; font-family: Arial;">
+        <h1>أهلاً بك، ${name}!</h1>
+        <p>شكرًا لتسجيلك. هذه هي تذكرتك التي تحتوي على رمز الدخول.</p>
+        <img src="${qrCodeUrl}" alt="QR Code">
+      </div>
+    `,
       };
 
-      // إرسال الإيميل (لا ننتظر الرد منه)
-      transporter.sendMail(mailOptions, (mailErr, info) => {
-        if (mailErr) {
-          console.error("Error sending email:", mailErr);
-        } else {
-          console.log("Email sent successfully:", info.response);
-        }
-      });
+      // 3. إرسال الإيميل
+      sgMail
+        .send(msg)
+        .then(() => {
+          console.log("Email sent successfully via SendGrid");
+        })
+        .catch((error) => {
+          console.error(
+            "Error sending email via SendGrid:",
+            error.response.body
+          );
+        });
+
+      // --- انتهى الكود الجديد ---
 
       // أرسل رد النجاح النهائي للمتصفح
       // هذا هو الرد الوحيد الذي يجب أن يصل في حالة النجاح
