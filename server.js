@@ -46,7 +46,7 @@ app.post("/register", (req, res) => {
     console.log(`تم تسجيل مستخدم جديد بنجاح. ID التذكرة: ${ticketId}`);
 
     // الرابط الذي سيتم تضمينه في الـ QR Code
-    const verificationUrl = `http://localhost:3000/verify/${ticketId}`;
+    const verificationUrl = `https://qr-system-app.onrender.com/verify/${ticketId}`;
 
     qr.toDataURL(verificationUrl, (err, qrCodeUrl) => {
       if (err) {
