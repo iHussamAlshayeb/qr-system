@@ -4,6 +4,7 @@ const db = require("./database.js");
 const path = require("path");
 const { v4: uuidv4 } = require("uuid"); // لاستيراد وظيفة إنشاء الرموز
 const qr = require("qrcode"); // لاستيراد مكتبة QR Code
+const nodemailer = require("nodemailer");
 
 // 2. إنشاء تطبيق Express
 const app = express();
@@ -52,6 +53,54 @@ app.post("/register", (req, res) => {
       if (err) {
         return res.send("تم التسجيل، ولكن حدث خطأ أثناء إنشاء QR Code.");
       }
+
+      // 1. إعداد المرسل (استخدم إيميلك وكلمة مرور التطبيقات)
+      const transporter = nodemailer.createTransport({
+        service: "gmail",
+        auth: {
+          user: "hassomalshayeb@gmail.com", // <-- ضع إيميلك هنا
+          pass: "nzgmemuozzwjwnhq", // <-- ضع كلمة مرور التطبيقات هنا
+        },
+      });
+
+      // 2. محتوى الرسالة
+      const mailOptions = {
+        from: '"اسم الحدث او الشركة" <hassomalshayeb@gmail.com>',
+        to: email, // الإيميل الذي أدخله المستخدم
+        subject: "تذكرتك الإلكترونية جاهزة!",
+        html: `
+      <div dir="rtl" style="text-align: right; font-family: Arial;">
+        <h1>أهلاً بك، ${name}!</h1>
+        <p>شكرًا لتسجيلك. هذه هي تذكرتك التي تحتوي على رمز الدخول.</p>
+        <p>يرجى إظهار هذا الرمز عند الحضور.</p>
+        <img src="${qrCodeUrl}" alt="QR Code">
+      </div>
+    `,
+      };
+
+      // 3. إرسال الإيميل
+      transporter.sendMail(mailOptions, (error, info) => {
+        if (error) {
+          console.error("خطأ في إرسال الإيميل:", error);
+        } else {
+          console.log("تم إرسال الإيميل بنجاح:", info.response);
+        }
+      });
+
+      // --- انتهى الكود الجديد ---
+
+      // عرض صفحة النجاح للمستخدم (مع زر التحميل الجديد)
+      res.send(`
+    <div style="text-align: center; font-family: Arial;">
+      <h1>تم التسجيل بنجاح!</h1>
+      <p>شكرًا لك، ${name}. لقد أرسلنا التذكرة إلى بريدك الإلكتروني.</p>
+      <img src="${qrCodeUrl}" alt="QR Code">
+      <br><br>
+      <a href="${qrCodeUrl}" download="ticket-qrcode.png" style="padding: 10px 20px; background-color: #28a745; color: white; text-decoration: none; border-radius: 5px;">
+        تحميل الـ QR Code
+      </a>
+    </div>
+  `);
 
       // 6. إرسال صفحة نجاح تحتوي على الـ QR Code للمستخدم
       res.send(`
