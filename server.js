@@ -121,5 +121,5 @@ app.get("/verify/:ticketId", (req, res) => {
 
 // 4. تشغيل الخادم ليكون جاهزاً لاستقبال الزوار
 app.listen(port, () => {
-  console.log(`الخادم يعمل الآن على الرابط http://localhost:${port}`);
+  console.log(`https://qr-system-app.onrender.com:${port}`);
 });
