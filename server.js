@@ -65,6 +65,93 @@ app.get("/scanner", (req, res) => {
     `);
 });
 
+// لعرض صفحة لوحة التحكم والإحصائيات
+app.get('/admin', checkAuth, (req, res) => {
+  const sqlTotal = `SELECT COUNT(*) as total FROM registrations`;
+  const sqlAttended = `SELECT COUNT(*) as attended FROM registrations WHERE status = 'USED'`;
+  const sqlAllUsers = `SELECT name, email, status, created_at FROM registrations ORDER BY created_at DESC`;
+
+  // 1. جلب العدد الإجمالي للمسجلين
+  db.get(sqlTotal, [], (err, totalRow) => {
+    if (err) return res.status(500).send('خطأ في جلب البيانات');
+
+    // 2. جلب عدد الحضور
+    db.get(sqlAttended, [], (err, attendedRow) => {
+      if (err) return res.status(500).send('خطأ في جلب البيانات');
+
+      // 3. جلب قائمة كل المسجلين
+      db.all(sqlAllUsers, [], (err, users) => {
+        if (err) return res.status(500).send('خطأ في جلب البيانات');
+
+        // 4. بناء وإرسال صفحة HTML الديناميكية
+        const pageTitle = "لوحة التحكم";
+        let userRows = users.map(user => `
+          <tr>
+            <td>${user.name}</td>
+            <td>${user.email}</td>
+            <td class="${user.status.toLowerCase()}">${user.status === 'USED' ? 'حضر' : 'لم يحضر'}</td>
+            <td>${new Date(user.created_at).toLocaleString('ar-SA')}</td>
+          </tr>
+        `).join('');
+
+        res.send(`
+          <!DOCTYPE html>
+          <html lang="ar" dir="rtl">
+          <head>
+            <meta charset="UTF-8">
+            <title>${pageTitle}</title>
+            <style>
+              body { font-family: Arial, sans-serif; background-color: #f9f9f9; color: #333; margin: 20px; }
+              .container { max-width: 1000px; margin: auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+              h1, h2 { text-align: center; color: #0056b3; }
+              .stats { display: flex; justify-content: space-around; text-align: center; margin: 30px 0; }
+              .stat-box { background: #eef7ff; padding: 20px; border-radius: 8px; width: 45%; }
+              .stat-box h3 { margin-top: 0; }
+              .stat-box p { font-size: 2.5em; font-weight: bold; color: #007bff; margin: 0; }
+              table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+              th, td { padding: 12px; border: 1px solid #ddd; text-align: right; }
+              th { background-color: #007bff; color: white; }
+              tr:nth-child(even) { background-color: #f2f2f2; }
+              .used { color: green; font-weight: bold; }
+              .unused { color: #cc8400; font-weight: bold; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <h1>${pageTitle}</h1>
+              <div class="stats">
+                <div class="stat-box">
+                  <h3>إجمالي المسجلين</h3>
+                  <p>${totalRow.total}</p>
+                </div>
+                <div class="stat-box">
+                  <h3>إجمالي الحضور</h3>
+                  <p>${attendedRow.attended}</p>
+                </div>
+              </div>
+              <h2>قائمة الحضور</h2>
+              <table>
+                <thead>
+                  <tr>
+                    <th>الاسم</th>
+                    <th>البريد الإلكتروني</th>
+                    <th>الحالة</th>
+                    <th>وقت التسجيل</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${userRows}
+                </tbody>
+              </table>
+            </div>
+          </body>
+          </html>
+        `);
+      });
+    });
+  });
+});
+
 // Middleware للتحقق مما إذا كان المستخدم موظفًا مسجلاً
 const checkAuth = (req, res, next) => {
   if (req.session.isLoggedIn) {
