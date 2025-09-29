@@ -265,7 +265,7 @@ app.post("/register", (req, res) => {
       // 2. إرسال الإيميل (لاحظ كم هو أبسط!)
       resend.emails
         .send({
-          from: "you@yourverifieddomain.com", // <-- استخدم إيميل من نطاقك الذي أثبته
+          from: "hassomalshayeb@gmail.com", // <-- استخدم إيميل من نطاقك الذي أثبته
           to: email, // البريد الذي أدخله المستخدم
           subject: "تذكرتك الإلكترونية جاهزة!",
           html: `
