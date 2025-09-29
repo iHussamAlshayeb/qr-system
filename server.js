@@ -4,10 +4,8 @@ const db = require("./database.js");
 const path = require("path");
 const { v4: uuidv4 } = require("uuid"); // لاستيراد وظيفة إنشاء الرموز
 const qr = require("qrcode"); // لاستيراد مكتبة QR Code
-// const nodemailer = require("nodemailer");
-const sgMail = require("@sendgrid/mail");
+const nodemailer = require("nodemailer");
 const session = require("express-session");
-const { Resend } = require("resend");
 
 // 2. إنشاء تطبيق Express
 const app = express();
@@ -198,92 +196,30 @@ app.post("/register", (req, res) => {
           .send("تم التسجيل، ولكن حدث خطأ أثناء إنشاء QR Code.");
       }
 
-      // // إعداد الإيميل
-      // const transporter = nodemailer.createTransport({
-      //   service: "gmail",
-      //   auth: {
-      //     user: "hassomalshayeb@gmail.com", // <-- ضع إيميلك هنا
-      //     pass: "nzgmemuozzwjwnhq", // <-- ضع كلمة مرور التطبيقات هنا
-      //   },
-      // });
+      // إعداد الإيميل
+      const transporter = nodemailer.createTransport({
+        service: "gmail",
+        auth: {
+          user: "hassomalshayeb@gmail.com", // <-- ضع إيميلك هنا
+          pass: "nzgmemuozzwjwnhq", // <-- ضع كلمة مرور التطبيقات هنا
+        },
+      });
 
-      // const mailOptions = {
-      //   from: '"اسم الحدث او الشركة" <hassomalshayeb@gmail.com>',
-      //   to: email,
-      //   subject: "تذكرتك الإلكترونية جاهزة!",
-      //   html: `<div dir="rtl" style="text-align: right; font-family: Arial;"><h1>أهلاً بك، ${name}!</h1><p>شكرًا لتسجيلك. هذه هي تذكرتك التي تحتوي على رمز الدخول.</p><img src="${qrCodeUrl}" alt="QR Code"></div>`,
-      // };
+      const mailOptions = {
+        from: '"اسم الحدث او الشركة" <hassomalshayeb@gmail.com>',
+        to: email,
+        subject: "تذكرتك الإلكترونية جاهزة!",
+        html: `<div dir="rtl" style="text-align: right; font-family: Arial;"><h1>أهلاً بك، ${name}!</h1><p>شكرًا لتسجيلك. هذه هي تذكرتك التي تحتوي على رمز الدخول.</p><img src="${qrCodeUrl}" alt="QR Code"></div>`,
+      };
 
-      // // إرسال الإيميل (لا ننتظر الرد منه)
-      // transporter.sendMail(mailOptions, (mailErr, info) => {
-      //   if (mailErr) {
-      //     console.error("Error sending email:", mailErr);
-      //   } else {
-      //     console.log("Email sent successfully:", info.response);
-      //   }
-      // });
-
-      // --- ابدأ بالكود الجديد من هنا ---
-
-      //   // 1. إعداد مفتاح API الخاص بـ SendGrid
-      //   sgMail.setApiKey(process.env.SENDGRID_API_KEY); // سنقوم بإعداد هذا المتغير لاحقاً
-
-      //   // 2. إعداد الرسالة
-      //   const msg = {
-      //     to: email, // البريد الذي أدخله المستخدم
-      //     from: "hassomalshayeb@gmail.com", // <-- ضع إيميلك الذي أثبته في SendGrid
-      //     subject: "تذكرتك الإلكترونية جاهزة!",
-      //     html: `
-      //   <div dir="rtl" style="text-align: right; font-family: Arial;">
-      //     <h1>أهلاً بك، ${name}!</h1>
-      //     <p>شكرًا لتسجيلك. هذه هي تذكرتك التي تحتوي على رمز الدخول.</p>
-      //     <img src="${qrCodeUrl}" alt="QR Code">
-      //   </div>
-      // `,
-      //   };
-
-      //   // 3. إرسال الإيميل
-      //   sgMail
-      //     .send(msg)
-      //     .then(() => {
-      //       console.log("Email sent successfully via SendGrid");
-      //     })
-      //     .catch((error) => {
-      //       console.error(
-      //         "Error sending email via SendGrid:",
-      //         error.response.body
-      //       );
-      //     });
-
-      // --- انتهى الكود الجديد ---
-
-      // --- ابدأ بالكود الجديد من هنا ---
-
-      // 1. إعداد Resend باستخدام مفتاح API
-      const resend = new Resend(process.env.RESEND_API_KEY);
-
-      // 2. إرسال الإيميل (لاحظ كم هو أبسط!)
-      resend.emails
-        .send({
-          from: "hassomalshayeb@gmail.com", // <-- استخدم إيميل من نطاقك الذي أثبته
-          to: email, // البريد الذي أدخله المستخدم
-          subject: "تذكرتك الإلكترونية جاهزة!",
-          html: `
-      <div dir="rtl" style="text-align: right; font-family: Arial;">
-        <h1>أهلاً بك، ${name}!</h1>
-        <p>شكرًا لتسجيلك. هذه هي تذكرتك التي تحتوي على رمز الدخول.</p>
-        <img src="${qrCodeUrl}" alt="QR Code">
-      </div>
-    `,
-        })
-        .then((response) =>
-          console.log("Email sent successfully via Resend:", response)
-        )
-        .catch((error) =>
-          console.error("Error sending email via Resend:", error)
-        );
-
-      // --- انتهى الكود الجديد ---
+      // إرسال الإيميل (لا ننتظر الرد منه)
+      transporter.sendMail(mailOptions, (mailErr, info) => {
+        if (mailErr) {
+          console.error("Error sending email:", mailErr);
+        } else {
+          console.log("Email sent successfully:", info.response);
+        }
+      });
 
       // أرسل رد النجاح النهائي للمتصفح
       // هذا هو الرد الوحيد الذي يجب أن يصل في حالة النجاح
