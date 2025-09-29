@@ -5,9 +5,19 @@ const path = require("path");
 const { v4: uuidv4 } = require("uuid"); // لاستيراد وظيفة إنشاء الرموز
 const qr = require("qrcode"); // لاستيراد مكتبة QR Code
 const nodemailer = require("nodemailer");
+const session = require("express-session");
 
 // 2. إنشاء تطبيق Express
 const app = express();
+// إعدادات الجلسة
+app.use(
+  session({
+    secret: "a-very-secret-key-that-you-should-change", // مفتاح سري لتشفير الجلسة
+    resave: false,
+    saveUninitialized: true,
+    cookie: { secure: false }, // اجعله true إذا كنت تستخدم HTTPS
+  })
+);
 // middleware لفهم البيانات القادمة من الفورم
 app.use(express.urlencoded({ extended: true }));
 const port = process.env.PORT || 3000; // سنشغل الخادم على هذا المنفذ
@@ -21,56 +31,104 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));
 });
 
-app.post('/register', (req, res) => {
+// كلمة المرور الخاصة بالموظفين (يمكن تغييرها)
+const STAFF_PASSWORD = "password123";
+
+// لعرض صفحة تسجيل الدخول
+app.get("/login", (req, res) => {
+  res.sendFile(path.join(__dirname, "login.html"));
+});
+
+// لمعالجة طلب تسجيل الدخول
+app.post("/login", (req, res) => {
+  const { password } = req.body;
+  if (password === STAFF_PASSWORD) {
+    req.session.isLoggedIn = true; // تخزين حالة تسجيل الدخول في الجلسة
+    res.redirect("/scanner"); // توجيهه لصفحة السكانر بعد النجاح
+  } else {
+    res.send("كلمة المرور خاطئة!");
+  }
+});
+
+// صفحة افتراضية للموظف بعد تسجيل الدخول
+app.get("/scanner", (req, res) => {
+  if (!req.session.isLoggedIn) {
+    return res.redirect("/login");
+  }
+  res.send(`
+        <div style="text-align: center; font-family: Arial;">
+            <h1>أهلاً بك أيها الموظف</h1>
+            <p>أنت الآن مسجل وجاهز لمسح التذاكر.</p>
+            <p>استخدم كاميرا جوالك الآن لمسح أي QR Code.</p>
+        </div>
+    `);
+});
+
+// Middleware للتحقق مما إذا كان المستخدم موظفًا مسجلاً
+const checkAuth = (req, res, next) => {
+  if (req.session.isLoggedIn) {
+    next(); // إذا كان مسجلاً، اسمح له بالمرور
+  } else {
+    res.redirect("/login"); // إذا لم يكن، أعد توجيهه لصفحة الدخول
+  }
+};
+
+app.post("/register", (req, res) => {
   const { name, email } = req.body;
   const ticketId = uuidv4();
 
   const sql = `INSERT INTO registrations (name, email, ticket_id) VALUES (?, ?, ?)`;
   const params = [name, email, ticketId];
 
-  db.run(sql, params, function(err) {
+  db.run(sql, params, function (err) {
     if (err) {
       console.error("Database error:", err.message);
       // إذا حدث خطأ في قاعدة البيانات، أرسل هذا الرد وتوقف هنا
-      return res.status(400).send('حدث خطأ. قد يكون هذا البريد الإلكتروني مسجلاً من قبل.');
+      return res
+        .status(400)
+        .send("حدث خطأ. قد يكون هذا البريد الإلكتروني مسجلاً من قبل.");
     }
 
     console.log(`User registered successfully. Ticket ID: ${ticketId}`);
-    
-    const verificationUrl = `${process.env.RENDER_EXTERNAL_URL || 'http://localhost:3000'}/verify/${ticketId}`;
-    
+
+    const verificationUrl = `${
+      process.env.RENDER_EXTERNAL_URL || "http://localhost:3000"
+    }/verify/${ticketId}`;
+
     qr.toDataURL(verificationUrl, (qrErr, qrCodeUrl) => {
       if (qrErr) {
         console.error("QR Code generation error:", qrErr);
         // إذا حدث خطأ في إنشاء الرمز، أرسل هذا الرد وتوقف هنا
-        return res.status(500).send('تم التسجيل، ولكن حدث خطأ أثناء إنشاء QR Code.');
+        return res
+          .status(500)
+          .send("تم التسجيل، ولكن حدث خطأ أثناء إنشاء QR Code.");
       }
 
       // إعداد الإيميل
       const transporter = nodemailer.createTransport({
-        service: 'gmail',
+        service: "gmail",
         auth: {
-          user: 'hassomalshayeb@gmail.com', // <-- ضع إيميلك هنا
-          pass: 'nzgmemuozzwjwnhq'  // <-- ضع كلمة مرور التطبيقات هنا
-        }
+          user: "hassomalshayeb@gmail.com", // <-- ضع إيميلك هنا
+          pass: "nzgmemuozzwjwnhq", // <-- ضع كلمة مرور التطبيقات هنا
+        },
       });
 
       const mailOptions = {
         from: '"اسم الحدث او الشركة" <hassomalshayeb@gmail.com>',
         to: email,
-        subject: 'تذكرتك الإلكترونية جاهزة!',
-        html: `<div dir="rtl" style="text-align: right; font-family: Arial;"><h1>أهلاً بك، ${name}!</h1><p>شكرًا لتسجيلك. هذه هي تذكرتك التي تحتوي على رمز الدخول.</p><img src="${qrCodeUrl}" alt="QR Code"></div>`
+        subject: "تذكرتك الإلكترونية جاهزة!",
+        html: `<div dir="rtl" style="text-align: right; font-family: Arial;"><h1>أهلاً بك، ${name}!</h1><p>شكرًا لتسجيلك. هذه هي تذكرتك التي تحتوي على رمز الدخول.</p><img src="${qrCodeUrl}" alt="QR Code"></div>`,
       };
 
       // إرسال الإيميل (لا ننتظر الرد منه)
       transporter.sendMail(mailOptions, (mailErr, info) => {
         if (mailErr) {
-          console.error('Error sending email:', mailErr);
+          console.error("Error sending email:", mailErr);
         } else {
-          console.log('Email sent successfully:', info.response);
+          console.log("Email sent successfully:", info.response);
         }
       });
-      
+
       // أرسل رد النجاح النهائي للمتصفح
       // هذا هو الرد الوحيد الذي يجب أن يصل في حالة النجاح
       res.status(200).send(`
@@ -88,9 +146,8 @@ app.post('/register', (req, res) => {
   });
 });
 
-
 // نقطة التحقق من التذكرة عند مسح الـ QR Code
-app.get("/verify/:ticketId", (req, res) => {
+app.get("/verify/:ticketId", checkAuth, (req, res) => {
   // 1. استخراج ID التذكرة من الرابط
   const { ticketId } = req.params;
 
