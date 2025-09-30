@@ -698,7 +698,7 @@ app.get("/admin/dashboard/:eventId", checkAdmin, async (req, res) => {
 //   }
 // });
 
-app.get('/admin/registration/:registrationId', checkAdmin, async (req, res) => {
+app.get('/admin/registration/:registrationId', checkAuth, async (req, res) => {
     const { registrationId } = req.params;
     try {
         const result = await db.query(
@@ -712,13 +712,8 @@ app.get('/admin/registration/:registrationId', checkAdmin, async (req, res) => {
         const row = result.rows[0];
         if (!row) return res.status(404).send("التسجيل غير موجود.");
 
-        // --- هذا هو الجزء الجديد ---
-        // 1. إعادة بناء رابط التحقق الخاص بهذه التذكرة
         const verificationUrl = `${process.env.RENDER_EXTERNAL_URL || `http://localhost:${port}`}/verify/${row.ticket_id}`;
-        
-        // 2. توليد صورة الـ QR Code
         const qrCodeUrl = await qr.toDataURL(verificationUrl);
-        // --- نهاية الجزء الجديد ---
 
         const dynamicData = row.dynamic_data || {};
         let dynamicDataHtml = Object.entries(dynamicData).map(([key, value]) => {
@@ -735,9 +730,15 @@ app.get('/admin/registration/:registrationId', checkAdmin, async (req, res) => {
             </head>
             <body class="bg-gray-100 flex items-center justify-center min-h-screen py-12">
                 <div class="w-full max-w-4xl bg-white p-8 rounded-xl shadow-lg">
-                    <h1 class="text-2xl font-bold text-center text-gray-800 mb-2">تفاصيل التسجيل</h1>
-                    <p class="text-center text-gray-500 mb-6">للمناسبة: ${row.event_name}</p>
-                    
+                    <div class="flex justify-between items-center mb-6">
+                        <div>
+                            <h1 class="text-2xl font-bold text-gray-800">تفاصيل التسجيل</h1>
+                            <p class="text-gray-500">للمناسبة: ${row.event_name}</p>
+                        </div>
+                        <a href="/admin/registration/edit/${row.id}" class="bg-yellow-500 text-white py-2 px-5 rounded-lg font-semibold hover:bg-yellow-600 transition duration-300">
+                            تعديل البيانات
+                        </a>
+                    </div>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div class="md:col-span-1 bg-gray-50 p-4 rounded-lg border">
                             <h2 class="font-bold text-lg mb-4 border-b pb-2">البيانات الأساسية</h2>
@@ -774,6 +775,65 @@ app.get('/admin/registration/:registrationId', checkAdmin, async (req, res) => {
     } catch (err) {
         console.error("Registration Details Error:", err);
         res.status(500).send("Error fetching registration details.");
+    }
+});
+
+// 1. عرض صفحة تعديل بيانات المسجل
+app.get('/admin/registration/edit/:registrationId', checkAuth, async (req, res) => {
+    const { registrationId } = req.params;
+    try {
+        const result = await db.query('SELECT * FROM registrations WHERE id = $1', [registrationId]);
+        const registration = result.rows[0];
+        if (!registration) return res.status(404).send("التسجيل غير موجود.");
+
+        // استخراج البيانات الديناميكية لملء الفورم
+        const dynamicData = registration.dynamic_data || {};
+        const fieldsResult = await db.query('SELECT name, label FROM form_fields WHERE event_id = $1 ORDER BY id', [registration.event_id]);
+        
+        // بناء حقول الفورم الديناميكية مع تعبئة القيم الحالية
+        let dynamicFieldsHtml = fieldsResult.rows.map(field => {
+            if (field.name === 'name' || field.name === 'email') return ''; // تخطي الحقول الأساسية
+            const value = dynamicData[field.name] || '';
+            return `<div class="mb-4"><label for="${field.name}" class="block font-semibold">${field.label}</label><input type="text" name="${field.name}" id="${field.name}" value="${value}" class="w-full px-4 py-2 border rounded-lg"></div>`;
+        }).join('');
+
+        res.send(`
+            <!DOCTYPE html><html lang="ar" dir="rtl"><head><title>تعديل البيانات</title><script src="https://cdn.tailwindcss.com"></script></head>
+            <body class="bg-gray-100 flex items-center justify-center min-h-screen">
+            <div class="w-full max-w-lg bg-white p-8 rounded-xl shadow-lg">
+                <h1 class="text-2xl font-bold text-center mb-6">تعديل بيانات: ${registration.name}</h1>
+                <form action="/admin/registration/update/${registrationId}" method="POST" class="space-y-4">
+                    <div class="mb-4"><label for="name" class="block font-semibold">الاسم الكامل</label><input type="text" name="name" id="name" value="${registration.name}" class="w-full px-4 py-2 border rounded-lg" required></div>
+                    <div class="mb-4"><label for="email" class="block font-semibold">البريد الإلكتروني</label><input type="email" name="email" id="email" value="${registration.email}" class="w-full px-4 py-2 border rounded-lg" required></div>
+                    ${dynamicFieldsHtml}
+                    <div class="flex items-center gap-4 pt-4">
+                        <button type="submit" class="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700">حفظ التعديلات</button>
+                        <a href="/admin/registration/${registrationId}" class="w-full text-center bg-gray-200 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-300">إلغاء</a>
+                    </div>
+                </form>
+            </div></body></html>
+        `);
+    } catch (err) {
+        res.status(500).send("خطأ في تحميل صفحة التعديل.");
+    }
+});
+
+// 2. استقبال البيانات المحدثة وحفظها في قاعدة البيانات
+app.post('/admin/registration/update/:registrationId', checkAuth, async (req, res) => {
+    const { registrationId } = req.params;
+    const { name, email, ...dynamicData } = req.body;
+    
+    try {
+        // تحديث البيانات الأساسية والديناميكية
+        await db.query(
+            'UPDATE registrations SET name = $1, email = $2, dynamic_data = $3 WHERE id = $4',
+            [name, email, dynamicData, registrationId]
+        );
+        // إعادة توجيهه إلى صفحة التفاصيل لرؤية التغييرات
+        res.redirect(`/admin/registration/${registrationId}`);
+    } catch (err) {
+        console.error("Update Registration Error:", err);
+        res.status(500).send("خطأ في حفظ التعديلات.");
     }
 });
 
