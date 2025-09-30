@@ -49,6 +49,15 @@ const setupDatabase = async () => {
         is_active BOOLEAN NOT NULL DEFAULT TRUE
       )
     `);
+
+    await client.query(`
+  CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    username TEXT NOT NULL UNIQUE,
+    password TEXT NOT NULL,
+    role TEXT NOT NULL -- 'admin' or 'scanner'
+  )
+`);
     console.log("PostgreSQL database tables are ready.");
   } finally {
     client.release();

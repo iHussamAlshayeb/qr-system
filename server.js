@@ -6,6 +6,7 @@ const { v4: uuidv4 } = require("uuid");
 const qr = require("qrcode");
 const session = require("express-session");
 const fs = require("fs");
+const bcrypt = require('bcrypt');
 // const sgMail = require('@sendgrid/mail');
 
 // 2. App Setup
@@ -23,12 +24,22 @@ const port = process.env.PORT || 3000;
 // sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 // --- Middleware ---
-const checkAuth = (req, res, next) => {
-  if (req.session.isLoggedIn) {
-    next();
-  } else {
-    res.redirect("/login");
-  }
+// حارس خاص بصفحات المدير فقط
+const checkAdmin = (req, res, next) => {
+    if (req.session.isLoggedIn && req.session.role === 'admin') {
+        next();
+    } else {
+        res.status(403).send("<h1>403 - Forbidden</h1><p>ليس لديك صلاحية للوصول لهذه الصفحة.</p>");
+    }
+};
+
+// حارس يسمح للمدير والماسح الضوئي بالوصول
+const checkScanner = (req, res, next) => {
+    if (req.session.isLoggedIn && (req.session.role === 'admin' || req.session.role === 'scanner')) {
+        next();
+    } else {
+        res.redirect("/login");
+    }
 };
 
 // --- Public Routes ---
@@ -196,7 +207,7 @@ app.post("/register/:eventId", async (req, res) => {
 });
 
 // QR Code verification route
-app.get("/verify/:ticketId", checkAuth, async (req, res) => {
+app.get("/verify/:ticketId", checkScanner, async (req, res) => {
   const { ticketId } = req.params;
   try {
     const result = await db.query(
@@ -279,17 +290,39 @@ app.get("/login", (req, res) =>
   res.sendFile(path.join(__dirname, "login.html"))
 );
 
-app.post("/login", (req, res) => {
-  if (req.body.password === STAFF_PASSWORD) {
-    req.session.isLoggedIn = true;
-    res.redirect("/admin/events");
-  } else {
-    res.send("Incorrect password!");
-  }
+// server.js
+app.post("/login", async (req, res) => {
+    const { username, password } = req.body;
+    try {
+        const result = await db.query('SELECT * FROM users WHERE username = $1', [username]);
+        const user = result.rows[0];
+
+        if (!user) {
+            return res.send("اسم المستخدم أو كلمة المرور خاطئة!");
+        }
+
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (isMatch) {
+            req.session.isLoggedIn = true;
+            req.session.role = user.role; // حفظ دور المستخدم في الجلسة
+            req.session.username = user.username;
+
+            // توجيه المستخدم بناءً على دوره
+            if (user.role === 'admin') {
+                res.redirect("/admin/events");
+            } else {
+                res.redirect("/scanner");
+            }
+        } else {
+            res.send("اسم المستخدم أو كلمة المرور خاطئة!");
+        }
+    } catch (err) {
+        res.status(500).send("حدث خطأ في الخادم.");
+    }
 });
 
 // Main page for event management
-app.get('/admin/events', checkAuth, async (req, res) => {
+app.get('/admin/events', checkAdmin, async (req, res) => {
     try {
         const result = await db.query(`SELECT * FROM events ORDER BY created_at DESC`);
         const eventRows = result.rows.map(event => `
@@ -323,7 +356,7 @@ app.get('/admin/events', checkAuth, async (req, res) => {
 });
 
 // Add a new event
-app.post("/admin/events/add", checkAuth, async (req, res) => {
+app.post("/admin/events/add", checkAdmin, async (req, res) => {
   const { name, description } = req.body;
   try {
     const result = await db.query(
@@ -348,7 +381,7 @@ app.post("/admin/events/add", checkAuth, async (req, res) => {
 });
 
 // مسار لتغيير حالة المناسبة (نشط/غير نشط)
-app.post('/admin/events/toggle/:eventId', checkAuth, async (req, res) => {
+app.post('/admin/events/toggle/:eventId', checkAdmin, async (req, res) => {
     const { eventId } = req.params;
     try {
         await db.query(`UPDATE events SET is_active = NOT is_active WHERE id = $1`, [eventId]);
@@ -359,7 +392,7 @@ app.post('/admin/events/toggle/:eventId', checkAuth, async (req, res) => {
 });
 
 // مسار لحذف مناسبة
-app.post('/admin/events/delete/:eventId', checkAuth, async (req, res) => {
+app.post('/admin/events/delete/:eventId', checkAdmin, async (req, res) => {
     const { eventId } = req.params;
     try {
         // بفضل خاصية ON DELETE CASCADE، سيتم حذف كل المسجلين والحقول تلقائيًا
@@ -371,7 +404,7 @@ app.post('/admin/events/delete/:eventId', checkAuth, async (req, res) => {
 });
 
 // Event-specific dashboard
-app.get("/admin/dashboard/:eventId", checkAuth, async (req, res) => {
+app.get("/admin/dashboard/:eventId", checkAdmin, async (req, res) => {
   const { eventId } = req.params;
   try {
     const [
@@ -517,7 +550,7 @@ app.get("/admin/dashboard/:eventId", checkAuth, async (req, res) => {
 });
 
 // Show registration details
-app.get("/admin/registration/:registrationId", checkAuth, async (req, res) => {
+app.get("/admin/registration/:registrationId", checkAdmin, async (req, res) => {
   const { registrationId } = req.params;
   try {
     const result = await db.query(
@@ -601,7 +634,7 @@ app.get("/admin/registration/:registrationId", checkAuth, async (req, res) => {
 });
 
 // Add/Delete form fields for an event
-app.post("/admin/add-field/:eventId", checkAuth, async (req, res) => {
+app.post("/admin/add-field/:eventId", checkAdmin, async (req, res) => {
   const { eventId } = req.params;
   const { label, name, type, options } = req.body;
   const required = req.body.required ? true : false;
@@ -620,7 +653,7 @@ app.post("/admin/add-field/:eventId", checkAuth, async (req, res) => {
 
 app.post(
   "/admin/delete-field/:eventId/:fieldId",
-  checkAuth,
+  checkAdmin,
   async (req, res) => {
     const { eventId, fieldId } = req.params;
     try {
@@ -635,6 +668,35 @@ app.post(
     }
   }
 );
+
+// صفحة لإدارة المستخدمين
+app.get('/admin/users', checkAdmin, async (req, res) => {
+    // كود لعرض فورم إضافة مستخدم وعرض قائمة بالمستخدمين الحاليين
+    res.send(`
+        <h1>إدارة المستخدمين</h1>
+        <form action="/admin/users/add" method="POST">
+            <input name="username" placeholder="اسم المستخدم" required>
+            <input name="password" placeholder="كلمة المرور" required>
+            <select name="role">
+                <option value="scanner">ماسح ضوئي (Scanner)</option>
+                <option value="admin">مدير (Admin)</option>
+            </select>
+            <button type="submit">إضافة مستخدم</button>
+        </form>
+    `);
+});
+
+// منطق إضافة مستخدم جديد
+app.post('/admin/users/add', checkAdmin, async (req, res) => {
+    const { username, password, role } = req.body;
+    try {
+        const hashedPassword = await bcrypt.hash(password, 10); // تشفير كلمة المرور
+        await db.query('INSERT INTO users (username, password, role) VALUES ($1, $2, $3)', [username, hashedPassword, role]);
+        res.redirect('/admin/users'); // يمكنك تحسين هذه الصفحة لاحقًا
+    } catch (err) {
+        res.status(500).send("خطأ في إضافة المستخدم، قد يكون الاسم مكررًا.");
+    }
+});
 
 // Start Server
 // A function to start the server
