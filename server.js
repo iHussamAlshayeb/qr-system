@@ -6,7 +6,7 @@ const { v4: uuidv4 } = require("uuid");
 const qr = require("qrcode");
 const session = require("express-session");
 const fs = require("fs");
-const bcrypt = require('bcrypt');
+const bcrypt = require("bcrypt");
 // const sgMail = require('@sendgrid/mail');
 
 // 2. App Setup
@@ -26,20 +26,27 @@ const port = process.env.PORT || 3000;
 // --- Middleware ---
 // حارس خاص بصفحات المدير فقط
 const checkAdmin = (req, res, next) => {
-    if (req.session.isLoggedIn && req.session.role === 'admin') {
-        next();
-    } else {
-        res.status(403).send("<h1>403 - Forbidden</h1><p>ليس لديك صلاحية للوصول لهذه الصفحة.</p>");
-    }
+  if (req.session.isLoggedIn && req.session.role === "admin") {
+    next();
+  } else {
+    res
+      .status(403)
+      .send(
+        "<h1>403 - Forbidden</h1><p>ليس لديك صلاحية للوصول لهذه الصفحة.</p>"
+      );
+  }
 };
 
 // حارس يسمح للمدير والماسح الضوئي بالوصول
 const checkScanner = (req, res, next) => {
-    if (req.session.isLoggedIn && (req.session.role === 'admin' || req.session.role === 'scanner')) {
-        next();
-    } else {
-        res.redirect("/login");
-    }
+  if (
+    req.session.isLoggedIn &&
+    (req.session.role === "admin" || req.session.role === "scanner")
+  ) {
+    next();
+  } else {
+    res.redirect("/login");
+  }
 };
 
 // --- Public Routes ---
@@ -290,40 +297,36 @@ app.get("/login", (req, res) =>
   res.sendFile(path.join(__dirname, "login.html"))
 );
 
-// server.js
 app.post("/login", async (req, res) => {
-    const { username, password } = req.body;
-    try {
-        const result = await db.query('SELECT * FROM users WHERE username = $1', [username]);
-        const user = result.rows[0];
+  const { username, password } = req.body;
+  try {
+    const result = await db.query("SELECT * FROM users WHERE username = $1", [
+      username,
+    ]);
+    const user = result.rows[0];
 
-        if (!user) {
-            return res.send("اسم المستخدم أو كلمة المرور خاطئة!");
-        }
+    if (user && (await bcrypt.compare(password, user.password))) {
+      req.session.isLoggedIn = true;
+      req.session.role = user.role;
+      req.session.username = user.username;
+      req.session.userId = user.id; // <-- هذا هو السطر الجديد والمهم
 
-        const isMatch = await bcrypt.compare(password, user.password);
-        if (isMatch) {
-            req.session.isLoggedIn = true;
-            req.session.role = user.role; // حفظ دور المستخدم في الجلسة
-            req.session.username = user.username;
-
-            // توجيه المستخدم بناءً على دوره
-            if (user.role === 'admin') {
-                res.redirect("/admin/home");
-            } else {
-                res.redirect("/scanner");
-            }
-        } else {
-            res.send("اسم المستخدم أو كلمة المرور خاطئة!");
-        }
-    } catch (err) {
-        res.status(500).send("حدث خطأ في الخادم.");
+      if (user.role === "admin") {
+        res.redirect("/admin/home");
+      } else {
+        res.redirect("/scanner");
+      }
+    } else {
+      res.send("اسم المستخدم أو كلمة المرور خاطئة!");
     }
+  } catch (err) {
+    res.status(500).send("حدث خطأ في الخادم.");
+  }
 });
 
 // New admin homepage/main menu
-app.get('/admin/home', checkAdmin, (req, res) => {
-    res.send(`
+app.get("/admin/home", checkAdmin, (req, res) => {
+  res.send(`
         <!DOCTYPE html>
         <html lang="ar" dir="rtl">
         <head>
@@ -357,37 +360,61 @@ app.get('/admin/home', checkAdmin, (req, res) => {
 });
 
 // Main page for event management
-app.get('/admin/events', checkAdmin, async (req, res) => {
-    try {
-        const result = await db.query(`SELECT * FROM events ORDER BY created_at DESC`);
-        const eventRows = result.rows.map(event => `
-            <tr class="${event.is_active ? '' : 'bg-gray-200 opacity-60'}">
+app.get("/admin/events", checkAdmin, async (req, res) => {
+  try {
+    const result = await db.query(
+      `SELECT * FROM events ORDER BY created_at DESC`
+    );
+    const eventRows = result.rows
+      .map(
+        (event) => `
+            <tr class="${event.is_active ? "" : "bg-gray-200 opacity-60"}">
                 <td class="py-3 px-4">${event.name}</td>
                 <td class="py-3 px-4">
-                    <span class="px-2 py-1 font-semibold text-xs rounded-full ${event.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
-                        ${event.is_active ? 'نشط' : 'غير نشط'}
+                    <span class="px-2 py-1 font-semibold text-xs rounded-full ${
+                      event.is_active
+                        ? "bg-green-100 text-green-800"
+                        : "bg-red-100 text-red-800"
+                    }">
+                        ${event.is_active ? "نشط" : "غير نشط"}
                     </span>
                 </td>
-                <td class="py-3 px-4"><a href="/register/${event.id}" target="_blank" class="text-blue-500 hover:underline">/register/${event.id}</a></td>
+                <td class="py-3 px-4"><a href="/register/${
+                  event.id
+                }" target="_blank" class="text-blue-500 hover:underline">/register/${
+          event.id
+        }</a></td>
                 <td class="py-3 px-4 flex gap-4">
-                    <a href="/admin/dashboard/${event.id}" class="font-bold text-blue-600 hover:underline">إدارة</a>
-                    <form action="/admin/events/toggle/${event.id}" method="POST" class="inline-block">
+                    <a href="/admin/dashboard/${
+                      event.id
+                    }" class="font-bold text-blue-600 hover:underline">إدارة</a>
+                    <form action="/admin/events/toggle/${
+                      event.id
+                    }" method="POST" class="inline-block">
                         <button type="submit" class="font-bold text-yellow-600 hover:underline">تغيير الحالة</button>
                     </form>
-                    <form action="/admin/events/delete/${event.id}" method="POST" onsubmit="return confirm('تحذير: سيتم حذف المناسبة وكل المسجلين فيها نهائياً. هل أنت متأكد؟');" class="inline-block">
+                    <form action="/admin/events/delete/${
+                      event.id
+                    }" method="POST" onsubmit="return confirm('تحذير: سيتم حذف المناسبة وكل المسجلين فيها نهائياً. هل أنت متأكد؟');" class="inline-block">
                         <button type="submit" class="font-bold text-red-600 hover:underline">حذف</button>
                     </form>
                 </td>
             </tr>
-        `).join('');
-        
-        fs.readFile(path.join(__dirname, "events.html"), "utf8", (err, htmlData) => {
-            if (err) throw err;
-            res.send(htmlData.replace("{-- EVENTS_TABLE_ROWS --}", eventRows));
-        });
-    } catch (err) {
-        res.status(500).send("خطأ في جلب المناسبات.");
-    }
+        `
+      )
+      .join("");
+
+    fs.readFile(
+      path.join(__dirname, "events.html"),
+      "utf8",
+      (err, htmlData) => {
+        if (err) throw err;
+        res.send(htmlData.replace("{-- EVENTS_TABLE_ROWS --}", eventRows));
+      }
+    );
+  } catch (err) {
+    res.status(500).send("خطأ في جلب المناسبات.");
+  }
 });
 
 // Add a new event
@@ -416,26 +443,29 @@ app.post("/admin/events/add", checkAdmin, async (req, res) => {
 });
 
 // مسار لتغيير حالة المناسبة (نشط/غير نشط)
-app.post('/admin/events/toggle/:eventId', checkAdmin, async (req, res) => {
-    const { eventId } = req.params;
-    try {
-        await db.query(`UPDATE events SET is_active = NOT is_active WHERE id = $1`, [eventId]);
-        res.redirect('/admin/events');
-    } catch (err) {
-        res.status(500).send("خطأ في تغيير حالة المناسبة.");
-    }
+app.post("/admin/events/toggle/:eventId", checkAdmin, async (req, res) => {
+  const { eventId } = req.params;
+  try {
+    await db.query(
+      `UPDATE events SET is_active = NOT is_active WHERE id = $1`,
+      [eventId]
+    );
+    res.redirect("/admin/events");
+  } catch (err) {
+    res.status(500).send("خطأ في تغيير حالة المناسبة.");
+  }
 });
 
 // مسار لحذف مناسبة
-app.post('/admin/events/delete/:eventId', checkAdmin, async (req, res) => {
-    const { eventId } = req.params;
-    try {
-        // بفضل خاصية ON DELETE CASCADE، سيتم حذف كل المسجلين والحقول تلقائيًا
-        await db.query(`DELETE FROM events WHERE id = $1`, [eventId]);
-        res.redirect('/admin/events');
-    } catch (err) {
-        res.status(500).send("خطأ في حذف المناسبة.");
-    }
+app.post("/admin/events/delete/:eventId", checkAdmin, async (req, res) => {
+  const { eventId } = req.params;
+  try {
+    // بفضل خاصية ON DELETE CASCADE، سيتم حذف كل المسجلين والحقول تلقائيًا
+    await db.query(`DELETE FROM events WHERE id = $1`, [eventId]);
+    res.redirect("/admin/events");
+  } catch (err) {
+    res.status(500).send("خطأ في حذف المناسبة.");
+  }
 });
 
 // Event-specific dashboard
@@ -704,40 +734,167 @@ app.post(
   }
 );
 
-// صفحة لإدارة المستخدمين
-app.get('/admin/users', checkAdmin, async (req, res) => {
-    // كود لعرض فورم إضافة مستخدم وعرض قائمة بالمستخدمين الحاليين
+// 1. عرض صفحة إدارة المستخدمين (قائمة المستخدمين + فورم الإضافة)
+app.get("/admin/users", checkAdmin, async (req, res) => {
+  try {
+    const result = await db.query(
+      "SELECT id, username, role FROM users ORDER BY role, username"
+    );
+    const users = result.rows;
+
+    const userRows = users
+      .map(
+        (user) => `
+            <tr class="border-b">
+                <td class="py-3 px-4">${user.username}</td>
+                <td class="py-3 px-4">
+                    <span class="px-2 py-1 font-semibold text-xs rounded-full ${
+                      user.role === "admin"
+                        ? "bg-indigo-100 text-indigo-800"
+                        : "bg-blue-100 text-blue-800"
+                    }">
+                        ${user.role}
+                    </span>
+                </td>
+                <td class="py-3 px-4 flex items-center gap-4">
+                    <a href="/admin/users/edit/${
+                      user.id
+                    }" class="text-yellow-600 hover:underline">تغيير كلمة المرور</a>
+                    ${
+                      user.id === req.session.userId
+                        ? '<button class="text-gray-400 cursor-not-allowed" disabled>حذف</button>'
+                        : `<form action="/admin/users/delete/${user.id}" method="POST" onsubmit="return confirm('هل أنت متأكد من حذف هذا المستخدم؟');">
+                            <button type="submit" class="text-red-600 hover:underline">حذف</button>
+                         </form>`
+                    }
+                </td>
+            </tr>
+        `
+      )
+      .join("");
+
     res.send(`
-        <h1>إدارة المستخدمين</h1>
-        <form action="/admin/users/add" method="POST">
-            <input name="username" placeholder="اسم المستخدم" required>
-            <input name="password" placeholder="كلمة المرور" required>
-            <select name="role">
-                <option value="scanner">ماسح ضوئي (Scanner)</option>
-                <option value="admin">مدير (Admin)</option>
-            </select>
-            <button type="submit">إضافة مستخدم</button>
-        </form>
+            <!DOCTYPE html>
+            <html lang="ar" dir="rtl">
+            <head>
+                <title>إدارة المستخدمين</title>
+                <script src="https://cdn.tailwindcss.com"></script>
+            </head>
+            <body class="bg-gray-100">
+                <div class="container mx-auto max-w-4xl mt-10 p-8 bg-white rounded-xl shadow-lg">
+                    <a href="/admin/home" class="inline-block mb-8 bg-gray-200 text-gray-700 py-2 px-4 rounded-lg font-semibold hover:bg-gray-300">&larr; العودة للرئيسية</a>
+                    <h1 class="text-3xl font-bold text-center text-gray-800 mb-8">إدارة المستخدمين</h1>
+                    
+                    <div class="overflow-x-auto border rounded-lg">
+                        <table class="min-w-full bg-white text-gray-700">
+                            <thead class="bg-gray-800 text-white">
+                                <tr>
+                                    <th class="text-right py-3 px-4">اسم المستخدم</th>
+                                    <th class="text-right py-3 px-4">الدور (الصلاحية)</th>
+                                    <th class="text-right py-3 px-4">الإجراءات</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y">${userRows}</tbody>
+                        </table>
+                    </div>
+
+                    <div class="mt-10 p-6 bg-gray-50 rounded-lg border">
+                        <h2 class="text-2xl font-semibold text-gray-700 mb-4">إضافة مستخدم جديد</h2>
+                        <form action="/admin/users/add" method="POST" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
+                            <input type="text" name="username" placeholder="اسم المستخدم" class="w-full px-4 py-2 border rounded-lg" required>
+                            <input type="password" name="password" placeholder="كلمة المرور" class="w-full px-4 py-2 border rounded-lg" required>
+                            <select name="role" class="w-full px-4 py-2 border rounded-lg">
+                                <option value="scanner">ماسح ضوئي (Scanner)</option>
+                                <option value="admin">مدير (Admin)</option>
+                            </select>
+                            <button type="submit" class="w-full bg-green-600 text-white py-2 rounded-lg font-semibold hover:bg-green-700">إضافة مستخدم</button>
+                        </form>
+                    </div>
+                </div>
+            </body>
+            </html>
+        `);
+  } catch (err) {
+    res.status(500).send("خطأ في تحميل صفحة المستخدمين.");
+  }
+});
+
+// 2. منطق إضافة مستخدم جديد
+app.post("/admin/users/add", checkAdmin, async (req, res) => {
+  const { username, password, role } = req.body;
+  try {
+    const hashedPassword = await bcrypt.hash(password, 10);
+    await db.query(
+      "INSERT INTO users (username, password, role) VALUES ($1, $2, $3)",
+      [username, hashedPassword, role]
+    );
+    res.redirect("/admin/users");
+  } catch (err) {
+    res.status(500).send("خطأ في إضافة المستخدم، قد يكون الاسم مكررًا.");
+  }
+});
+
+// 3. منطق حذف مستخدم
+app.post("/admin/users/delete/:userId", checkAdmin, async (req, res) => {
+  const { userId } = req.params;
+  // حماية إضافية: لا تسمح للمدير بحذف نفسه
+  if (parseInt(userId, 10) === req.session.userId) {
+    return res.status(403).send("لا يمكنك حذف حسابك الخاص.");
+  }
+  try {
+    await db.query("DELETE FROM users WHERE id = $1", [userId]);
+    res.redirect("/admin/users");
+  } catch (err) {
+    res.status(500).send("خطأ في حذف المستخدم.");
+  }
+});
+
+// 4. عرض صفحة تغيير كلمة المرور
+app.get("/admin/users/edit/:userId", checkAdmin, async (req, res) => {
+  const { userId } = req.params;
+  const result = await db.query("SELECT username FROM users WHERE id = $1", [
+    userId,
+  ]);
+  const user = result.rows[0];
+  res.send(`
+        <!DOCTYPE html><html lang="ar" dir="rtl"><head><title>تغيير كلمة المرور</title><script src="https://cdn.tailwindcss.com"></script></head>
+        <body class="bg-gray-100 flex items-center justify-center min-h-screen">
+        <div class="w-full max-w-sm bg-white p-8 rounded-xl shadow-lg">
+            <h1 class="text-2xl font-bold text-center text-gray-800 mb-6">تغيير كلمة المرور لـ <span class="text-blue-600">${user.username}</span></h1>
+            <form action="/admin/users/update-password/${userId}" method="POST" class="space-y-6">
+                <div><label for="password" class="block font-semibold">كلمة المرور الجديدة</label><input type="password" name="password" id="password" class="w-full px-4 py-2 border rounded-lg" required></div>
+                <button type="submit" class="w-full bg-yellow-500 text-white py-3 rounded-lg font-semibold hover:bg-yellow-600">تحديث كلمة المرور</button>
+            </form>
+            <div class="text-center mt-6"><a href="/admin/users" class="text-gray-500 hover:underline">&larr; إلغاء والعودة</a></div>
+        </div></body></html>
     `);
 });
 
-// منطق إضافة مستخدم جديد
-app.post('/admin/users/add', checkAdmin, async (req, res) => {
-    const { username, password, role } = req.body;
+// 5. منطق تحديث كلمة المرور
+app.post(
+  "/admin/users/update-password/:userId",
+  checkAdmin,
+  async (req, res) => {
+    const { userId } = req.params;
+    const { password } = req.body;
     try {
-        const hashedPassword = await bcrypt.hash(password, 10); // تشفير كلمة المرور
-        await db.query('INSERT INTO users (username, password, role) VALUES ($1, $2, $3)', [username, hashedPassword, role]);
-        res.redirect('/admin/users'); // يمكنك تحسين هذه الصفحة لاحقًا
+      const hashedPassword = await bcrypt.hash(password, 10);
+      await db.query("UPDATE users SET password = $1 WHERE id = $2", [
+        hashedPassword,
+        userId,
+      ]);
+      res.redirect("/admin/users");
     } catch (err) {
-        res.status(500).send("خطأ في إضافة المستخدم، قد يكون الاسم مكررًا.");
+      res.status(500).send("خطأ في تحديث كلمة المرور.");
     }
-});
+  }
+);
 
 // Scanner's welcome page
-app.get('/scanner', checkScanner, (req, res) => {
-    // We only need to check if the user is logged in. 
-    // The login route already directs them here if they are a scanner.
-    res.send(`
+app.get("/scanner", checkScanner, (req, res) => {
+  // We only need to check if the user is logged in.
+  // The login route already directs them here if they are a scanner.
+  res.send(`
         <!DOCTYPE html>
         <html lang="ar" dir="rtl">
         <head>
@@ -766,14 +923,14 @@ app.get('/scanner', checkScanner, (req, res) => {
 });
 
 // Logout route
-app.get('/logout', (req, res) => {
-    req.session.destroy((err) => {
-        if (err) {
-            return res.redirect('/');
-        }
-        res.clearCookie('connect.sid'); // The default session cookie name
-        res.redirect('/login');
-    });
+app.get("/logout", (req, res) => {
+  req.session.destroy((err) => {
+    if (err) {
+      return res.redirect("/");
+    }
+    res.clearCookie("connect.sid"); // The default session cookie name
+    res.redirect("/login");
+  });
 });
 
 // server.js (في نهاية الملف)
@@ -788,25 +945,28 @@ const startServer = () => {
 // دالة لإنشاء المدير الأول إذا لم يكن موجودًا
 const createFirstAdmin = async () => {
   try {
-    const result = await db.query('SELECT COUNT(*) FROM users');
+    const result = await db.query("SELECT COUNT(*) FROM users");
     if (parseInt(result.rows[0].count, 10) === 0) {
-      console.log('جدول المستخدمين فارغ، سيتم إنشاء حساب المدير الافتراضي...');
-      const username = 'admin';
-      const password = 'password123'; // <-- كلمة مرور افتراضية، يجب تغييرها
-      const role = 'admin';
-      
+      console.log("جدول المستخدمين فارغ، سيتم إنشاء حساب المدير الافتراضي...");
+      const username = "admin";
+      const password = "password123"; // <-- كلمة مرور افتراضية، يجب تغييرها
+      const role = "admin";
+
       const hashedPassword = await bcrypt.hash(password, 10);
-      await db.query('INSERT INTO users (username, password, role) VALUES ($1, $2, $3)', [username, hashedPassword, role]);
-      
-      console.log('=============================================');
-      console.log('تم إنشاء حساب المدير الافتراضي بنجاح!');
+      await db.query(
+        "INSERT INTO users (username, password, role) VALUES ($1, $2, $3)",
+        [username, hashedPassword, role]
+      );
+
+      console.log("=============================================");
+      console.log("تم إنشاء حساب المدير الافتراضي بنجاح!");
       console.log(`اسم المستخدم: ${username}`);
       console.log(`كلمة المرور: ${password}`);
-      console.log('الرجاء تسجيل الدخول وتغيير كلمة المرور فورًا.');
-      console.log('=============================================');
+      console.log("الرجاء تسجيل الدخول وتغيير كلمة المرور فورًا.");
+      console.log("=============================================");
     }
   } catch (err) {
-    console.error('فشل في إنشاء حساب المدير الأول:', err);
+    console.error("فشل في إنشاء حساب المدير الأول:", err);
   }
 };
 
@@ -817,7 +977,7 @@ db.setupDatabase()
     console.log("إعداد قاعدة البيانات اكتمل. بدء تشغيل الخادم...");
     startServer();
   })
-  .catch(err => {
+  .catch((err) => {
     console.error("فشل إعداد قاعدة البيانات. لم يتم تشغيل الخادم.", err);
     process.exit(1);
   });
