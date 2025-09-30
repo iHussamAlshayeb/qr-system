@@ -273,6 +273,20 @@ app.post('/admin/delete-field/:eventId/:fieldId', checkAuth, async (req, res) =>
 });
 
 // Start Server
-app.listen(port, () => {
+// A function to start the server
+const startServer = () => {
+  app.listen(port, () => {
     console.log(`Server is running on port ${port}`);
-});
+  });
+};
+
+// Call the database setup function, and ONLY if it succeeds, start the server
+db.setupDatabase()
+  .then(() => {
+    console.log("Database setup complete. Starting server...");
+    startServer();
+  })
+  .catch(err => {
+    console.error("Failed to set up database. Server not started.", err);
+    process.exit(1); // Exit the process with an error code
+  });
