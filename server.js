@@ -6,7 +6,7 @@ const { v4: uuidv4 } = require("uuid"); // لاستيراد وظيفة إنشا�
 const qr = require("qrcode"); // لاستيراد مكتبة QR Code
 const nodemailer = require("nodemailer");
 const session = require("express-session");
-const fs = require('fs');
+const fs = require("fs");
 
 // 2. إنشاء تطبيق Express
 const app = express();
@@ -36,38 +36,46 @@ const checkAuth = (req, res, next) => {
 // res = الرد الذي سنرسله للمتصفح
 // نحتاج استدعاء مكتبة path للمساعدة في تحديد مسار الملف
 
-app.get('/', (req, res) => {
+app.get("/", (req, res) => {
   // 1. Get active fields from the database
   const sql = `SELECT * FROM form_fields WHERE is_active = 1 ORDER BY id`;
 
   db.all(sql, [], (err, fields) => {
     if (err) {
       console.error(err.message);
-      return res.status(500).send('Error preparing the form.');
+      return res.status(500).send("Error preparing the form.");
     }
 
     // 2. Build the HTML for the new fields
-    let dynamicFieldsHtml = fields.map(field => {
-      const requiredAttr = field.required ? 'required' : '';
-      return `
+    let dynamicFieldsHtml = fields
+      .map((field) => {
+        const requiredAttr = field.required ? "required" : "";
+        return `
         <div class="form-group">
           <label for="${field.name}">${field.label}</label>
           <input type="${field.type}" id="${field.name}" name="${field.name}" ${requiredAttr}>
         </div>
       `;
-    }).join('');
+      })
+      .join("");
 
     // 3. Read the original index.html file
-    fs.readFile(path.join(__dirname, 'index.html'), 'utf8', (err, htmlData) => {
+    fs.readFile(path.join(__dirname, "index.html"), "utf8", (err, htmlData) => {
       if (err) {
         console.error(err);
-        return res.status(500).send('Error loading the registration page.');
+        return res.status(500).send("Error loading the registration page.");
       }
 
-      // 4. Replace the placeholder with the new fields
-      const finalHtml = htmlData.replace('', dynamicFieldsHtml);
+      // 4. استبدال العلامة بكود الحقول الجديد
+      const finalHtml = htmlData.replace("{-- DYNAMIC_FIELDS --}", dynamicFieldsHtml);
 
-      // 5. Send the final, modified page to the user
+      // // --- أضف هذا الكود للتشخيص ---
+      // console.log("--- نسخة HTML النهائية التي يتم إرسالها ---");
+      // console.log(finalHtml);
+      // console.log("--------------------------------------");
+      // // --- نهاية كود التشخيص ---
+
+      // 5. إرسال الصفحة النهائية المعدلة للمستخدم
       res.send(finalHtml);
     });
   });
@@ -108,7 +116,7 @@ app.get("/scanner", (req, res) => {
 
 // لعرض صفحة لوحة التحكم والإحصائيات
 // (استبدل المسار القديم بالكامل بهذا)
-app.get('/admin', checkAuth, (req, res) => {
+app.get("/admin", checkAuth, (req, res) => {
   // جلب كل البيانات اللازمة بشكل متوازي
   const sqlTotal = `SELECT COUNT(*) as total FROM registrations`;
   const sqlAttended = `SELECT COUNT(*) as attended FROM registrations WHERE status = 'USED'`;
@@ -116,28 +124,44 @@ app.get('/admin', checkAuth, (req, res) => {
   const sqlAllFields = `SELECT * FROM form_fields ORDER BY id`;
 
   Promise.all([
-    new Promise((resolve, reject) => db.get(sqlTotal, [], (err, row) => err ? reject(err) : resolve(row))),
-    new Promise((resolve, reject) => db.get(sqlAttended, [], (err, row) => err ? reject(err) : resolve(row))),
-    new Promise((resolve, reject) => db.all(sqlAllUsers, [], (err, rows) => err ? reject(err) : resolve(rows))),
-    new Promise((resolve, reject) => db.all(sqlAllFields, [], (err, rows) => err ? reject(err) : resolve(rows)))
-  ]).then(([totalRow, attendedRow, users, fields]) => {
+    new Promise((resolve, reject) =>
+      db.get(sqlTotal, [], (err, row) => (err ? reject(err) : resolve(row)))
+    ),
+    new Promise((resolve, reject) =>
+      db.get(sqlAttended, [], (err, row) => (err ? reject(err) : resolve(row)))
+    ),
+    new Promise((resolve, reject) =>
+      db.all(sqlAllUsers, [], (err, rows) =>
+        err ? reject(err) : resolve(rows)
+      )
+    ),
+    new Promise((resolve, reject) =>
+      db.all(sqlAllFields, [], (err, rows) =>
+        err ? reject(err) : resolve(rows)
+      )
+    ),
+  ])
+    .then(([totalRow, attendedRow, users, fields]) => {
+      // بناء صفوف جدول المستخدمين
+      let userRows = users.map((user) => `...`).join(""); // الكود هنا كما هو لم يتغير
 
-    // بناء صفوف جدول المستخدمين
-    let userRows = users.map(user => `...`).join(''); // الكود هنا كما هو لم يتغير
-
-    // بناء صفوف جدول حقول الفورم
-    let fieldRows = fields.map(field => `
+      // بناء صفوف جدول حقول الفورم
+      let fieldRows = fields
+        .map(
+          (field) => `
       <tr>
         <td>${field.label}</td>
         <td>${field.name}</td>
         <td>${field.type}</td>
-        <td>${field.required ? 'نعم' : 'لا'}</td>
+        <td>${field.required ? "نعم" : "لا"}</td>
         <td><button>تعديل</button> <button>حذف</button></td>
       </tr>
-    `).join('');
+    `
+        )
+        .join("");
 
-    // إرسال صفحة HTML الكاملة
-    res.send(`
+      // إرسال صفحة HTML الكاملة
+      res.send(`
       <!DOCTYPE html>
       <body>
         <div class="container">
@@ -173,14 +197,15 @@ app.get('/admin', checkAuth, (req, res) => {
       </body>
       </html>
     `);
-  }).catch(err => {
-    console.error(err);
-    res.status(500).send('خطأ في جلب بيانات لوحة التحكم');
-  });
+    })
+    .catch((err) => {
+      console.error(err);
+      res.status(500).send("خطأ في جلب بيانات لوحة التحكم");
+    });
 });
 
 // مسار لإضافة حقل جديد
-app.post('/admin/add-field', checkAuth, (req, res) => {
+app.post("/admin/add-field", checkAuth, (req, res) => {
   const { label, name, type } = req.body;
   const required = req.body.required ? 1 : 0; // تحويل قيمة checkbox
 
@@ -188,9 +213,11 @@ app.post('/admin/add-field', checkAuth, (req, res) => {
   db.run(sql, [label, name, type, required], (err) => {
     if (err) {
       console.error(err.message);
-      return res.status(500).send('خطأ في إضافة الحقل، قد يكون الاسم البرمجي مكررًا.');
+      return res
+        .status(500)
+        .send("خطأ في إضافة الحقل، قد يكون الاسم البرمجي مكررًا.");
     }
-    res.redirect('/admin'); // أعد التوجيه إلى لوحة التحكم لرؤية التغييرات
+    res.redirect("/admin"); // أعد التوجيه إلى لوحة التحكم لرؤية التغييرات
   });
 });
 
