@@ -1,354 +1,393 @@
-// 1. استدعاء المكتبات التي نحتاجها
+// 1. استدعاء المكتبات
 const express = require("express");
 const db = require("./database.js");
 const path = require("path");
-const { v4: uuidv4 } = require("uuid"); // لاستيراد وظيفة إنشاء الرموز
-const qr = require("qrcode"); // لاستيراد مكتبة QR Code
-const nodemailer = require("nodemailer");
+const { v4: uuidv4 } = require("uuid");
+const qr = require("qrcode");
 const session = require("express-session");
 const fs = require("fs");
+// const sgMail = require('@sendgrid/mail');
 
-// 2. إنشاء تطبيق Express
+// 2. إعداد التطبيق
 const app = express();
-// إعدادات الجلسة
 app.use(
   session({
-    secret: "a-very-secret-key-that-you-should-change", // مفتاح سري لتشفير الجلسة
+    secret: "a-very-secret-key-that-you-should-change",
     resave: false,
     saveUninitialized: true,
-    cookie: { secure: false }, // اجعله true إذا كنت تستخدم HTTPS
+    cookie: { secure: false },
   })
 );
-// middleware لفهم البيانات القادمة من الفورم
 app.use(express.urlencoded({ extended: true }));
-const port = process.env.PORT || 3000; // سنشغل الخادم على هذا المنفذ
+const port = process.env.PORT || 3000;
+// sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
-// Middleware للتحقق مما إذا كان المستخدم موظفًا مسجلاً
+// --- Middleware ---
 const checkAuth = (req, res, next) => {
   if (req.session.isLoggedIn) {
-    next(); // إذا كان مسجلاً، اسمح له بالمرور
+    next();
   } else {
-    res.redirect("/login"); // إذا لم يكن، أعد توجيهه لصفحة الدخول
+    res.redirect("/login");
   }
 };
 
-// 3. بناء الفورم الرئيسي بشكل ديناميكي
-app.get("/", (req, res) => {
-  const sql = `SELECT * FROM form_fields WHERE is_active = 1 ORDER BY id`;
+// --- المسارات العامة ---
 
-  db.all(sql, [], (err, fields) => {
+// New homepage to list all events
+app.get("/", (req, res) => {
+  const sql = `SELECT * FROM events WHERE is_active = 1 ORDER BY created_at DESC`; // Assuming you add an is_active column later
+  db.all(sql, [], (err, events) => {
     if (err) {
-      console.error(err.message);
+      return res.status(500).send("Error fetching events.");
+    }
+
+    const eventsListHtml = events
+      .map(
+        (event) => `<li><a href="/register/${event.id}">${event.name}</a></li>`
+      )
+      .join("");
+
+    res.send(`
+      <!DOCTYPE html>
+      <html lang="ar" dir="rtl">
+      <head>
+        <title>قائمة المناسبات</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <style>
+          body { font-family: Arial, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background-color: #f4f4f4; }
+          .container { background: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); text-align: center; }
+          ul { list-style: none; padding: 0; }
+          li { margin: 15px 0; }
+          a { text-decoration: none; color: #007bff; font-size: 1.2em; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <h1>المناسبات المتاحة</h1>
+          <ul>
+            ${eventsListHtml}
+          </ul>
+        </div>
+      </body>
+      </html>
+    `);
+  });
+});
+// صفحة التسجيل لمناسبة معينة
+app.get("/register/:eventId", (req, res) => {
+  const { eventId } = req.params;
+  const sql = `SELECT * FROM form_fields WHERE event_id = ? AND is_active = 1 ORDER BY id`;
+
+  db.all(sql, [eventId], (err, fields) => {
+    if (err) {
       return res.status(500).send("Error preparing the form.");
     }
 
-    // --- تعديل: بناء الحقول بناءً على نوعها ---
-    let dynamicFieldsHtml = fields.map(field => {
-      const requiredAttr = field.required ? 'required' : '';
-      let fieldHtml = '';
-
-      if (field.type === 'dropdown') {
-        const optionsArray = field.options.split(',');
-        const optionTags = optionsArray.map(opt => `<option value="${opt.trim()}">${opt.trim()}</option>`).join('');
-        fieldHtml = `
-          <div class="form-group">
-            <label for="${field.name}">${field.label}</label>
-            <select id="${field.name}" name="${field.name}" ${requiredAttr}>
-              ${optionTags}
-            </select>
-          </div>
-        `;
-      } else {
-        fieldHtml = `
-          <div class="form-group">
-            <label for="${field.name}">${field.label}</label>
-            <input type="${field.type}" id="${field.name}" name="${field.name}" ${requiredAttr}>
-          </div>
-        `;
-      }
-      return fieldHtml;
-    }).join('');
+    // (The logic for dynamicFieldsHtml remains the same)
+    let dynamicFieldsHtml = fields
+      .map((field) => {
+        const commonClasses =
+          "class='w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500'";
+        const labelHtml = `<label for="${field.name}" class="block text-gray-700 font-semibold mb-2">${field.label}</label>`;
+        if (field.type === "dropdown") {
+          const optionsArray = field.options.split(",");
+          const optionTags = optionsArray
+            .map(
+              (opt) => `<option value="${opt.trim()}">${opt.trim()}</option>`
+            )
+            .join("");
+          return `<div class="mb-4">${labelHtml}<select id="${
+            field.name
+          }" name="${field.name}" ${commonClasses} ${
+            field.required ? "required" : ""
+          }>${optionTags}</select></div>`;
+        } else {
+          return `<div class="mb-4">${labelHtml}<input type="${
+            field.type
+          }" id="${field.name}" name="${field.name}" ${commonClasses} ${
+            field.required ? "required" : ""
+          }></div>`;
+        }
+      })
+      .join("");
 
     fs.readFile(path.join(__dirname, "index.html"), "utf8", (err, htmlData) => {
       if (err) {
-        console.error(err);
-        return res.status(500).send("Error loading the registration page.");
+        return res.status(500).send("Error loading the page.");
       }
-      const finalHtml = htmlData.replace("{-- DYNAMIC_FIELDS --}", dynamicFieldsHtml);
+
+      // --- New Change Starts Here ---
+
+      // 1. Define the correct submission URL
+      const formActionUrl = `/register/${eventId}`;
+
+      // 2. Replace the placeholder and the form action
+      const finalHtml = htmlData
+        .replace("{-- DYNAMIC_FIELDS --}", dynamicFieldsHtml)
+        .replace('action="/register"', `action="${formActionUrl}"`); // This is the new line
+
+      // --- New Change Ends Here ---
+
       res.send(finalHtml);
     });
   });
 });
 
-// كلمة المرور الخاصة بالموظفين (يمكن تغييرها)
-const STAFF_PASSWORD = "password123";
+// استقبال بيانات التسجيل لمناسبة معينة
+app.post("/register/:eventId", (req, res) => {
+  const { eventId } = req.params;
+  const { name, email, ...dynamicData } = req.body;
+  const ticketId = uuidv4();
+  const dynamicDataJson = JSON.stringify(dynamicData);
+  db.run(
+    `INSERT INTO registrations (event_id, name, email, dynamic_data, ticket_id) VALUES (?, ?, ?, ?, ?)`,
+    [eventId, name, email, dynamicDataJson, ticketId],
+    function (err) {
+      if (err) return res.status(400).send("خطأ: قد يكون الإيميل مسجل مسبقًا.");
+      const verificationUrl = `${
+        process.env.RENDER_EXTERNAL_URL || `http://localhost:${port}`
+      }/verify/${ticketId}`;
+      qr.toDataURL(verificationUrl, (qrErr, qrCodeUrl) => {
+        if (qrErr) return res.status(500).send("فشل إنشاء QR Code.");
+        // كود إرسال الإيميل
+        res.send(
+          `<h1>تم التسجيل بنجاح!</h1><img src="${qrCodeUrl}"><br><a href="${qrCodeUrl}" download="ticket.png">تحميل الرمز</a>`
+        );
+      });
+    }
+  );
+});
 
-// مسارات تسجيل دخول الموظفين
+// مسار التحقق من التذكرة
+app.get("/verify/:ticketId", checkAuth, (req, res) => {
+  const { ticketId } = req.params;
+  const sql = `SELECT r.*, e.name as event_name FROM registrations r JOIN events e ON r.event_id = e.id WHERE r.ticket_id = ?`;
+  db.get(sql, [ticketId], (err, row) => {
+    if (err || !row) return res.status(404).send("<h1>التذكرة غير صالحة</h1>");
+    if (row.status === "USED")
+      return res
+        .status(409)
+        .send(`<h1>التذكرة مستخدمة لمناسبة: ${row.event_name}</h1>`);
+    db.run(
+      `UPDATE registrations SET status = 'USED' WHERE ticket_id = ?`,
+      [ticketId],
+      (updateErr) => {
+        if (updateErr) return res.status(500).send("خطأ في تحديث التذكرة.");
+        const dynamicData = JSON.parse(row.dynamic_data || "{}");
+        let dynamicDataHtml = Object.entries(dynamicData)
+          .map(
+            ([key, value]) =>
+              `<p><strong>${key.replace(/_/g, " ")}:</strong> ${value}</p>`
+          )
+          .join("");
+        res.send(
+          `<h1>✅ تم التحقق لمناسبة: ${row.event_name}</h1><p>الاسم: ${row.name}</p><p>الإيميل: ${row.email}</p>${dynamicDataHtml}`
+        );
+      }
+    );
+  });
+});
+
+// --- مسارات المدير ---
+const STAFF_PASSWORD = "password123";
 app.get("/login", (req, res) => {
   res.sendFile(path.join(__dirname, "login.html"));
 });
-
 app.post("/login", (req, res) => {
-  const { password } = req.body;
-  if (password === STAFF_PASSWORD) {
+  if (req.body.password === STAFF_PASSWORD) {
     req.session.isLoggedIn = true;
-    res.redirect("/admin"); // توجيه المدير إلى لوحة التحكم مباشرة
+    res.redirect("/admin/events");
   } else {
     res.send("كلمة المرور خاطئة!");
   }
 });
 
-// صفحة لوحة التحكم والإحصائيات
-app.get('/admin', checkAuth, (req, res) => {
-  const sqlTotal = `SELECT COUNT(*) as total FROM registrations`;
-  const sqlAttended = `SELECT COUNT(*) as attended FROM registrations WHERE status = 'USED'`;
-  const sqlAllUsers = `SELECT name, email, status, created_at FROM registrations ORDER BY created_at DESC`;
-  const sqlAllFields = `SELECT * FROM form_fields ORDER BY id`;
-
-  Promise.all([
-    new Promise((resolve, reject) => db.get(sqlTotal, [], (err, row) => err ? reject(err) : resolve(row))),
-    new Promise((resolve, reject) => db.get(sqlAttended, [], (err, row) => err ? reject(err) : resolve(row))),
-    new Promise((resolve, reject) => db.all(sqlAllUsers, [], (err, rows) => err ? reject(err) : resolve(rows))),
-    new Promise((resolve, reject) => db.all(sqlAllFields, [], (err, rows) => err ? reject(err) : resolve(rows)))
-  ]).then(([totalRow, attendedRow, users, fields]) => {
-    
-    let userRows = users.map(user => `
-      <tr>
-        <td>${user.name}</td>
-        <td>${user.email}</td>
-        <td class="${user.status.toLowerCase()}">${user.status === 'USED' ? 'حضر' : 'لم يحضر'}</td>
-        <td>${new Date(user.created_at).toLocaleString('ar-SA')}</td>
-      </tr>
-    `).join('');
-
-    let fieldRows = fields.map(field => `
-      <tr>
-        <td>${field.label}</td>
-        <td>${field.name}</td>
-        <td>${field.type}</td>
-        <td>${field.required ? 'نعم' : 'لا'}</td>
-        <td style="display: flex; gap: 5px;">
-          <button disabled hidden>تعديل</button>
-          <form action="/admin/delete-field" method="POST" onsubmit="return confirm('هل أنت متأكد من حذف هذا الحقل؟');">
-            <input type="hidden" name="field_id" value="${field.id}">
-            <button type="submit" style="background-color: #dc3545;">حذف</button>
-          </form>
-        </td>
-      </tr>
-    `).join('');
-
-    // --- تعديل: إضافة حقل الخيارات و JavaScript ---
-    res.send(`
-      <!DOCTYPE html>
-      <html lang="ar" dir="rtl">
-      <head>
-        <meta charset="UTF-8">
-        <title>لوحة التحكم</title>
-        <style>
-          body { font-family: Arial, sans-serif; background-color: #f9f9f9; color: #333; margin: 20px; }
-          .container { max-width: 1000px; margin: auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-          h1, h2 { text-align: center; color: #0056b3; }
-          .stats { display: flex; justify-content: space-around; text-align: center; margin: 30px 0; }
-          .stat-box { background: #eef7ff; padding: 20px; border-radius: 8px; width: 45%; }
-          .stat-box h3 { margin-top: 0; }
-          .stat-box p { font-size: 2.5em; font-weight: bold; color: #007bff; margin: 0; }
-          table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-          th, td { padding: 12px; border: 1px solid #ddd; text-align: right; }
-          th { background-color: #007bff; color: white; }
-          tr:nth-child(even) { background-color: #f2f2f2; }
-          .used { color: green; font-weight: bold; }
-          .unused { color: #cc8400; font-weight: bold; }
-          .field-form { margin-top: 15px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <h1>لوحة التحكم</h1>
-          <div class="stats">
-            <div class="stat-box"><h3>إجمالي المسجلين</h3><p>${totalRow.total}</p></div>
-            <div class="stat-box"><h3>إجمالي الحضور</h3><p>${attendedRow.attended}</p></div>
-          </div>
-          <h2>قائمة الحضور</h2>
-          <table>
-            <thead><tr><th>الاسم</th><th>البريد الإلكتروني</th><th>الحالة</th><th>وقت التسجيل</th></tr></thead>
-            <tbody>${userRows}</tbody>
-          </table>
-          <h2 style="margin-top: 40px;">إدارة حقول الفورم</h2>
-          <table>
-            <thead><tr><th>اسم الحقل</th><th>الاسم البرمجي</th><th>النوع</th><th>إجباري</th><th>إجراءات</th></tr></thead>
-            <tbody>${fieldRows}</tbody>
-          </table>
-          <h3 style="margin-top: 30px;">إضافة حقل جديد</h3>
-          <form action="/admin/add-field" method="POST" class="field-form">
-            <input type="text" name="label" placeholder="اسم الحقل" required>
-            <input type="text" name="name" placeholder="الاسم البرمجي" required>
-            <select name="type" id="fieldType" onchange="toggleOptionsInput()">
-              <option value="text">نص</option>
-              <option value="email">إيميل</option>
-              <option value="number">رقم</option>
-              <option value="dropdown">قائمة منسدلة</option>
-            </select>
-            <input type="text" name="options" id="optionsInput" placeholder="الخيارات (مثال: نعم,لا)" style="display:none;">
-            <label><input type="checkbox" name="required" value="1" checked> إجباري</label>
-            <button type="submit">إضافة الحقل</button>
-          </form>
-        </div>
-        <script>
-          function toggleOptionsInput() {
-            var fieldType = document.getElementById('fieldType').value;
-            var optionsInput = document.getElementById('optionsInput');
-            if (fieldType === 'dropdown') {
-              optionsInput.style.display = 'block';
-              optionsInput.required = true;
-            } else {
-              optionsInput.style.display = 'none';
-              optionsInput.required = false;
-            }
-          }
-        </script>
-      </body>
-      </html>
-    `);
-  }).catch(err => {
-    console.error(err);
-    res.status(500).send('خطأ في جلب بيانات لوحة التحكم');
-  });
-});
-
-// --- تعديل: مسار إضافة حقل جديد ليدعم الخيارات ---
-app.post("/admin/add-field", checkAuth, (req, res) => {
-  const { label, name, type, options } = req.body;
-  const required = req.body.required ? 1 : 0;
-  const fieldOptions = (type === 'dropdown') ? options : null;
-
-  const sql = `INSERT INTO form_fields (label, name, type, options, required) VALUES (?, ?, ?, ?, ?)`;
-  db.run(sql, [label, name, type, fieldOptions, required], (err) => {
-    if (err) {
-      console.error(err.message);
-      return res.status(500).send("خطأ في إضافة الحقل، قد يكون الاسم البرمجي مكررًا.");
-    }
-    res.redirect("/admin");
-  });
-});
-
-// مسار لمعالجة حذف حقل
-app.post('/admin/delete-field', checkAuth, (req, res) => {
-  const { field_id } = req.body;
-  const sql = `DELETE FROM form_fields WHERE id = ?`;
-  db.run(sql, [field_id], function(err) {
-    if (err) {
-      console.error(err.message);
-      return res.status(500).send('حدث خطأ أثناء حذف الحقل.');
-    }
-    console.log(`تم حذف الحقل بنجاح. ID: ${field_id}`);
-    res.redirect('/admin');
-  });
-});
-
-app.post("/register", (req, res) => {
-  // 1. فصل البيانات الأساسية عن البيانات الديناميكية
-  const { name, email, ...dynamicData } = req.body;
-  const ticketId = uuidv4();
-
-  // تحويل البيانات الديناميكية إلى نص JSON لتخزينها
-  const dynamicDataJson = JSON.stringify(dynamicData);
-
-  // 2. أمر SQL جديد لحفظ كل البيانات
-  const sql = `INSERT INTO registrations (name, email, dynamic_data, ticket_id) VALUES (?, ?, ?, ?)`;
-  const params = [name, email, dynamicDataJson, ticketId];
-
-  db.run(sql, params, function (err) {
-    if (err) {
-      console.error("Database error:", err.message);
-      return res.status(400).send("حدث خطأ. قد يكون هذا البريد الإلكتروني مسجلاً من قبل.");
-    }
-
-    console.log(`User registered successfully. Ticket ID: ${ticketId}`);
-
-    // 3. بقية الخطوات (إنشاء QR وإرسال الإيميل) تعمل كما هي
-    const verificationUrl = `${process.env.RENDER_EXTERNAL_URL || "http://localhost:3000"}/verify/${ticketId}`;
-
-    qr.toDataURL(verificationUrl, (qrErr, qrCodeUrl) => {
-      if (qrErr) {
-        console.error("QR Code generation error:", qrErr);
-        return res.status(500).send("تم التسجيل، ولكن حدث خطأ أثناء إنشاء QR Code.");
+// صفحة إدارة المناسبات
+app.get("/admin/events", checkAuth, (req, res) => {
+  db.all(`SELECT * FROM events ORDER BY created_at DESC`, [], (err, events) => {
+    if (err) return res.status(500).send("خطأ في جلب المناسبات.");
+    const eventRows = events
+      .map(
+        (event) => `
+            <tr>
+                <td>${event.name}</td>
+                <td><a href="/register/${event.id}" target="_blank">/register/${event.id}</a></td>
+                <td><a href="/admin/dashboard/${event.id}">عرض لوحة التحكم</a></td>
+            </tr>
+        `
+      )
+      .join("");
+    fs.readFile(
+      path.join(__dirname, "events.html"),
+      "utf8",
+      (err, htmlData) => {
+        if (err) return res.status(500).send("خطأ في تحميل الصفحة.");
+        res.send(htmlData.replace("{-- EVENTS_TABLE_ROWS --}", eventRows));
       }
-
-      // (الكود الخاص بإرسال الإيميل هنا، لم يتغير)
-      // ... يمكنك إضافة كود الإيميل الخاص بك هنا بنفس الطريقة السابقة ...
-
-      res.status(200).send(`
-        <div style="text-align: center; font-family: Arial;">
-          <h1>تم التسجيل بنجاح!</h1>
-          <p>شكرًا لك، ${name}. هذه هي تذكرتك الإلكترونية.</p>
-          <img src="${qrCodeUrl}" alt="QR Code">
-          <br><br>
-          <a href="${qrCodeUrl}" download="ticket-qrcode.png" style="padding: 10px 20px; background-color: #28a745; color: white; text-decoration: none; border-radius: 5px;">
-            تحميل الـ QR Code
-          </a>
-        </div>
-      `);
-    });
+    );
   });
 });
 
-app.get("/verify/:ticketId", checkAuth, (req, res) => {
-  const { ticketId } = req.params;
-  const sql = `SELECT * FROM registrations WHERE ticket_id = ?`;
-
-  db.get(sql, [ticketId], (err, row) => {
-    if (err) {
-      return res.status(500).send("An error occurred on the server.");
+// إضافة مناسبة جديدة
+app.post("/admin/events/add", checkAuth, (req, res) => {
+  const { name, description } = req.body;
+  db.run(
+    `INSERT INTO events (name, description) VALUES (?, ?)`,
+    [name, description],
+    function (err) {
+      if (err) return res.status(500).send("خطأ في إنشاء المناسبة.");
+      const eventId = this.lastID;
+      const defaultFields = [
+        { label: "الاسم الكامل", name: "name", type: "text" },
+        { label: "البريد الإلكتروني", name: "email", type: "email" },
+      ];
+      defaultFields.forEach((f) => {
+        db.run(
+          `INSERT INTO form_fields (event_id, label, name, type) VALUES (?, ?, ?, ?)`,
+          [eventId, f.label, f.name, f.type]
+        );
+      });
+      res.redirect("/admin/events");
     }
+  );
+});
 
-    if (!row) {
-      return res.status(404).send(`
-        <div style="text-align: center; font-family: Arial, sans-serif; padding: 50px; background-color: #ffdddd; color: #d8000c;">
-          <h1>❌ Error</h1>
-          <p>This ticket is not valid or does not exist.</p>
-        </div>
-      `);
-    } else if (row.status === "USED") {
-      return res.status(409).send(`
-        <div style="text-align: center; font-family: Arial, sans-serif; padding: 50px; background-color: #fff3cd; color: #856404;">
-          <h1>⚠️ Alert</h1>
-          <p>This ticket has already been used.</p>
-          <p><strong>Name:</strong> ${row.name}</p>
-        </div>
-      `);
-    } else {
-      const updateSql = `UPDATE registrations SET status = 'USED' WHERE ticket_id = ?`;
-      db.run(updateSql, [ticketId], (updateErr) => {
-        if (updateErr) {
-          return res.status(500).send("An error occurred while updating the ticket.");
-        }
+// **لوحة التحكم الكاملة لمناسبة معينة**
+app.get('/admin/dashboard/:eventId', checkAuth, (req, res) => {
+    const { eventId } = req.params;
+    const queries = [
+        db.get.bind(db, `SELECT name FROM events WHERE id = ?`, [eventId]),
+        db.get.bind(db, `SELECT COUNT(*) as total FROM registrations WHERE event_id = ?`, [eventId]),
+        db.get.bind(db, `SELECT COUNT(*) as attended FROM registrations WHERE event_id = ? AND status = 'USED'`, [eventId]),
+        db.all.bind(db, `SELECT name, email, status, created_at FROM registrations WHERE event_id = ? ORDER BY created_at DESC`, [eventId]),
+        db.all.bind(db, `SELECT * FROM form_fields WHERE event_id = ? ORDER BY id`, [eventId])
+    ];
 
-        // --- New code starts here ---
-        // 1. Parse the extra data from the JSON string
-        const dynamicData = JSON.parse(row.dynamic_data || '{}');
+    Promise.all(queries.map(q => new Promise((resolve, reject) => q((err, result) => err ? reject(err) : resolve(result)))))
+    .then(([event, totalRow, attendedRow, users, fields]) => {
+        if (!event) return res.status(404).send("Event not found.");
 
-        // 2. Build HTML for the extra data
-        let dynamicDataHtml = Object.entries(dynamicData).map(([key, value]) => {
-          return `<p><strong>${key.replace(/_/g, ' ')}:</strong> ${value}</p>`;
-        }).join('');
-        // --- New code ends here ---
+        const userRows = users.map(user => `
+            <tr class="border-b">
+                <td class="py-3 px-4">${user.name}</td>
+                <td class="py-3 px-4">${user.email}</td>
+                <td class="py-3 px-4">
+                    <span class="px-2 py-1 text-xs font-semibold rounded-full ${user.status === 'USED' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}">
+                        ${user.status === 'USED' ? 'حضر' : 'لم يحضر'}
+                    </span>
+                </td>
+                <td class="py-3 px-4">${new Date(user.created_at).toLocaleString('ar-SA')}</td>
+            </tr>
+        `).join('');
+
+        const fieldRows = fields.map(field => `
+            <tr class="border-b">
+                <td class="py-3 px-4">${field.label}</td>
+                <td class="py-3 px-4 font-mono text-sm">${field.name}</td>
+                <td class="py-3 px-4">${field.type}</td>
+                <td class="py-3 px-4">${field.required ? 'نعم' : 'لا'}</td>
+                <td class="py-3 px-4">
+                    <form action="/admin/delete-field/${eventId}/${field.id}" method="POST" onsubmit="return confirm('هل أنت متأكد؟');">
+                        <button type="submit" class="bg-red-500 text-white px-3 py-1 text-sm rounded-md hover:bg-red-600">حذف</button>
+                    </form>
+                </td>
+            </tr>
+        `).join('');
 
         res.send(`
-          <div style="text-align: center; font-family: Arial, sans-serif; padding: 50px; background-color: #d4edda; color: #155724;">
-            <h1>✅ Verified Successfully</h1>
-            <p>Welcome!</p>
-            <hr style="border-top: 1px solid #155724; border-bottom: none; margin: 20px 40px;">
-            <p><strong>Name:</strong> ${row.name}</p>
-            <p><strong>Email:</strong> ${row.email}</p>
-            ${dynamicDataHtml}
-          </div>
+            <!DOCTYPE html>
+            <html lang="ar" dir="rtl">
+            <head>
+                <meta charset="UTF-8">
+                <title>لوحة تحكم: ${event.name}</title>
+                <script src="https://cdn.tailwindcss.com"></script>
+            </head>
+            <body class="bg-gray-100">
+                <div class="container mx-auto max-w-6xl mt-10 p-8 bg-white rounded-xl shadow-lg">
+                    <a href="/admin/events" class="text-blue-500 hover:underline mb-6 block">&larr; العودة لكل المناسبات</a>
+                    <h1 class="text-3xl font-bold text-center text-gray-800">لوحة تحكم لـ: ${event.name}</h1>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 my-8">
+                        <div class="bg-blue-50 p-6 rounded-lg text-center">
+                            <h3 class="text-lg font-semibold text-blue-800">إجمالي المسجلين</h3>
+                            <p class="text-4xl font-bold text-blue-600 mt-2">${totalRow.total}</p>
+                        </div>
+                        <div class="bg-green-50 p-6 rounded-lg text-center">
+                            <h3 class="text-lg font-semibold text-green-800">إجمالي الحضور</h3>
+                            <p class="text-4xl font-bold text-green-600 mt-2">${attendedRow.attended}</p>
+                        </div>
+                    </div>
+
+                    <div class="mt-10">
+                        <h2 class="text-2xl font-semibold text-gray-700 mb-4">قائمة الحضور</h2>
+                        <div class="overflow-x-auto border rounded-lg">
+                            <table class="min-w-full bg-white text-sm text-gray-700">
+                                <thead class="bg-gray-800 text-white"><tr><th class="text-right py-3 px-4">الاسم</th><th class="text-right py-3 px-4">الإيميل</th><th class="text-right py-3 px-4">الحالة</th><th class="text-right py-3 px-4">وقت التسجيل</th></tr></thead>
+                                <tbody class="divide-y">${userRows}</tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-12">
+                        <h2 class="text-2xl font-semibold text-gray-700 mb-4">إدارة حقول الفورم</h2>
+                        <div class="overflow-x-auto border rounded-lg">
+                            <table class="min-w-full bg-white text-sm text-gray-700">
+                                <thead class="bg-gray-800 text-white"><tr><th class="text-right py-3 px-4">اسم الحقل</th><th class="text-right py-3 px-4">الاسم البرمجي</th><th class="text-right py-3 px-4">النوع</th><th class="text-right py-3 px-4">إجباري</th><th class="text-right py-3 px-4">إجراءات</th></tr></thead>
+                                <tbody class="divide-y">${fieldRows}</tbody>
+                            </table>
+                        </div>
+                        <div class="mt-6 p-6 bg-gray-50 rounded-lg border">
+                            <h3 class="text-xl font-semibold text-gray-700 mb-4">إضافة حقل جديد</h3>
+                            <form action="/admin/add-field/${eventId}" method="POST" class="grid grid-cols-1 md:grid-cols-5 gap-4 items-center">
+                                <input type="text" name="label" placeholder="اسم الحقل" class="md:col-span-1 w-full px-3 py-2 border rounded-lg" required>
+                                <input type="text" name="name" placeholder="الاسم البرمجي" class="md:col-span-1 w-full px-3 py-2 border rounded-lg" required>
+                                <select name="type" id="fieldType" onchange="toggleOptionsInput()" class="md:col-span-1 w-full px-3 py-2 border rounded-lg">
+                                    <option value="text">نص</option><option value="email">إيميل</option><option value="number">رقم</option><option value="dropdown">قائمة منسدلة</option>
+                                </select>
+                                <input type="text" name="options" id="optionsInput" placeholder="الخيارات (فاصلة)" class="md:col-span-2 w-full px-3 py-2 border rounded-lg" style="display:none;">
+                                <div class="md:col-span-5 flex items-center justify-between mt-2">
+                                    <label class="flex items-center gap-2 text-gray-600"><input type="checkbox" name="required" value="1" checked class="h-4 w-4 rounded"> إجباري</label>
+                                    <button type="submit" class="bg-blue-600 text-white py-2 px-5 rounded-lg font-semibold hover:bg-blue-700">إضافة</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                <script>function toggleOptionsInput(){var t=document.getElementById("fieldType").value,e=document.getElementById("optionsInput");"dropdown"===t?(e.style.display="block",e.required=!0,e.classList.remove("md:col-span-2")):(e.style.display="none",e.required=!1,e.classList.add("md:col-span-2"))}</script>
+            </body></html>
         `);
-      });
-    }
-  });
+    }).catch(err => res.status(500).send('Error loading dashboard: ' + err));
 });
 
-// تشغيل الخادم
+// إضافة وحذف الحقول لمناسبة معينة
+app.post("/admin/add-field/:eventId", checkAuth, (req, res) => {
+  const { eventId } = req.params;
+  const { label, name, type, options } = req.body;
+  const required = req.body.required ? 1 : 0;
+  const fieldOptions = type === "dropdown" ? options : null;
+  db.run(
+    `INSERT INTO form_fields (event_id, label, name, type, options, required) VALUES (?, ?, ?, ?, ?, ?)`,
+    [eventId, label, name, type, fieldOptions, required],
+    (err) => {
+      if (err) return res.status(500).send("خطأ في إضافة الحقل.");
+      res.redirect(`/admin/dashboard/${eventId}`);
+    }
+  );
+});
+
+app.post("/admin/delete-field/:eventId/:fieldId", checkAuth, (req, res) => {
+  const { eventId, fieldId } = req.params;
+  db.run(
+    `DELETE FROM form_fields WHERE id = ? AND event_id = ?`,
+    [fieldId, eventId],
+    function (err) {
+      if (err) return res.status(500).send("خطأ أثناء حذف الحقل.");
+      res.redirect(`/admin/dashboard/${eventId}`);
+    }
+  );
+});
+
+// 4. تشغيل الخادم
 app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
+  console.log(`الخادم يعمل على المنفذ ${port}`);
 });
