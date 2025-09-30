@@ -179,29 +179,70 @@ app.post("/register/:eventId", (req, res) => {
 app.get("/verify/:ticketId", checkAuth, (req, res) => {
   const { ticketId } = req.params;
   const sql = `SELECT r.*, e.name as event_name FROM registrations r JOIN events e ON r.event_id = e.id WHERE r.ticket_id = ?`;
+
   db.get(sql, [ticketId], (err, row) => {
-    if (err || !row) return res.status(404).send("<h1>التذكرة غير صالحة</h1>");
-    if (row.status === "USED")
-      return res
-        .status(409)
-        .send(`<h1>التذكرة مستخدمة لمناسبة: ${row.event_name}</h1>`);
-    db.run(
-      `UPDATE registrations SET status = 'USED' WHERE ticket_id = ?`,
-      [ticketId],
-      (updateErr) => {
-        if (updateErr) return res.status(500).send("خطأ في تحديث التذكرة.");
-        const dynamicData = JSON.parse(row.dynamic_data || "{}");
-        let dynamicDataHtml = Object.entries(dynamicData)
-          .map(
-            ([key, value]) =>
-              `<p><strong>${key.replace(/_/g, " ")}:</strong> ${value}</p>`
-          )
-          .join("");
-        res.send(
-          `<h1>✅ تم التحقق لمناسبة: ${row.event_name}</h1><p>الاسم: ${row.name}</p><p>الإيميل: ${row.email}</p>${dynamicDataHtml}`
-        );
-      }
-    );
+    // --- Invalid Ticket Page (Red) ---
+    if (err || !row) {
+      return res.status(404).send(`
+        <!DOCTYPE html><html lang="ar" dir="rtl"><head><title>خطأ</title><script src="https://cdn.tailwindcss.com"></script></head>
+        <body class="bg-gray-100 flex items-center justify-center min-h-screen">
+        <div class="w-full max-w-md bg-white p-8 rounded-xl shadow-lg text-center">
+            <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-red-100">
+                <svg class="h-8 w-8 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+            </div>
+            <h1 class="text-3xl font-bold text-red-700 mt-4">تذكرة غير صالحة</h1>
+            <p class="text-gray-600 mt-2">لم يتم العثور على هذا الرمز في النظام. يرجى التأكد من الرمز والمحاولة مرة أخرى.</p>
+        </div></body></html>
+      `);
+    }
+    
+    // --- Already Used Ticket Page (Yellow) ---
+    if (row.status === "USED") {
+      return res.status(409).send(`
+        <!DOCTYPE html><html lang="ar" dir="rtl"><head><title>تنبيه</title><script src="https://cdn.tailwindcss.com"></script></head>
+        <body class="bg-gray-100 flex items-center justify-center min-h-screen">
+        <div class="w-full max-w-md bg-white p-8 rounded-xl shadow-lg text-center">
+            <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-yellow-100">
+                <svg class="h-8 w-8 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+            </div>
+            <h1 class="text-3xl font-bold text-yellow-700 mt-4">التذكرة مستخدمة</h1>
+            <p class="text-gray-600 mt-2">تم استخدام هذه التذكرة مسبقًا لتسجيل الدخول.</p>
+            <div class="mt-4 text-left bg-gray-50 p-4 rounded-lg border">
+                <p><strong>المناسبة:</strong> ${row.event_name}</p>
+                <p><strong>الاسم:</strong> ${row.name}</p>
+            </div>
+        </div></body></html>
+      `);
+    }
+
+    // --- Success Page (Green) ---
+    const updateSql = `UPDATE registrations SET status = 'USED' WHERE ticket_id = ?`;
+    db.run(updateSql, [ticketId], (updateErr) => {
+      if (updateErr) return res.status(500).send("Error updating ticket status.");
+
+      const dynamicData = JSON.parse(row.dynamic_data || '{}');
+      let dynamicDataHtml = Object.entries(dynamicData).map(([key, value]) => 
+        `<div class="py-2"><p class="text-sm font-semibold text-gray-700">${key.replace(/_/g, ' ')}</p><p class="text-gray-900">${value}</p></div>`
+      ).join('');
+
+      res.send(`
+        <!DOCTYPE html><html lang="ar" dir="rtl"><head><title>تم التحقق</title><script src="https://cdn.tailwindcss.com"></script></head>
+        <body class="bg-gray-100 flex items-center justify-center min-h-screen">
+        <div class="w-full max-w-md bg-white p-8 rounded-xl shadow-lg text-center">
+            <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100">
+                <svg class="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+            </div>
+            <h1 class="text-3xl font-bold text-green-700 mt-4">تم التحقق بنجاح</h1>
+            <p class="text-gray-600 mt-2">مرحبًا بك!</p>
+            <div class="mt-6 text-left bg-gray-50 p-4 rounded-lg border divide-y">
+                <div class="py-2"><p class="text-sm font-semibold text-gray-700">المناسبة</p><p class="text-gray-900">${row.event_name}</p></div>
+                <div class="py-2"><p class="text-sm font-semibold text-gray-700">الاسم</p><p class="text-gray-900">${row.name}</p></div>
+                <div class="py-2"><p class="text-sm font-semibold text-gray-700">البريد الإلكتروني</p><p class="text-gray-900">${row.email}</p></div>
+                ${dynamicDataHtml}
+            </div>
+        </div></body></html>
+      `);
+    });
   });
 });
 
