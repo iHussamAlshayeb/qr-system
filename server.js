@@ -698,21 +698,48 @@ app.post('/admin/users/add', checkAdmin, async (req, res) => {
     }
 });
 
-// Start Server
-// A function to start the server
+// server.js (في نهاية الملف)
+
+// دالة لبدء تشغيل الخادم
 const startServer = () => {
   app.listen(port, () => {
-    console.log(`Server is running on port ${port}`);
+    console.log(`الخادم يعمل على المنفذ ${port}`);
   });
 };
 
-// Call the database setup function, and ONLY if it succeeds, start the server
+// دالة لإنشاء المدير الأول إذا لم يكن موجودًا
+const createFirstAdmin = async () => {
+  try {
+    const result = await db.query('SELECT COUNT(*) FROM users');
+    if (parseInt(result.rows[0].count, 10) === 0) {
+      console.log('جدول المستخدمين فارغ، سيتم إنشاء حساب المدير الافتراضي...');
+      const username = 'admin';
+      const password = 'password123'; // <-- كلمة مرور افتراضية، يجب تغييرها
+      const role = 'admin';
+      
+      const hashedPassword = await bcrypt.hash(password, 10);
+      await db.query('INSERT INTO users (username, password, role) VALUES ($1, $2, $3)', [username, hashedPassword, role]);
+      
+      console.log('=============================================');
+      console.log('تم إنشاء حساب المدير الافتراضي بنجاح!');
+      console.log(`اسم المستخدم: ${username}`);
+      console.log(`كلمة المرور: ${password}`);
+      console.log('الرجاء تسجيل الدخول وتغيير كلمة المرور فورًا.');
+      console.log('=============================================');
+    }
+  } catch (err) {
+    console.error('فشل في إنشاء حساب المدير الأول:', err);
+  }
+};
+
+// تشغيل الإعدادات ثم الخادم
 db.setupDatabase()
-  .then(() => {
-    console.log("Database setup complete. Starting server...");
+  .then(async () => {
+    await createFirstAdmin(); // <-- إضافة هذه الخطوة
+    console.log("إعداد قاعدة البيانات اكتمل. بدء تشغيل الخادم...");
     startServer();
   })
-  .catch((err) => {
-    console.error("Failed to set up database. Server not started.", err);
-    process.exit(1); // Exit the process with an error code
+  .catch(err => {
+    console.error("فشل إعداد قاعدة البيانات. لم يتم تشغيل الخادم.", err);
+    process.exit(1);
   });
