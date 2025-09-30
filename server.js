@@ -132,23 +132,47 @@ app.get("/register/:eventId", async (req, res) => {
 
 // Handle form submission
 app.post("/register/:eventId", async (req, res) => {
-  const { eventId } = req.params;
-  const { name, email, ...dynamicData } = req.body;
-  const ticketId = uuidv4();
+    const { eventId } = req.params;
+    const { name, email, ...dynamicData } = req.body;
+    const ticketId = uuidv4();
+    const dynamicDataJson = JSON.stringify(dynamicData);
 
-  try {
-    await db.query(
-      `INSERT INTO registrations (event_id, name, email, dynamic_data, ticket_id) VALUES ($1, $2, $3, $4, $5)`,
-      [eventId, name, email, dynamicData]
-    );
-    const verificationUrl = `${
-      process.env.RENDER_EXTERNAL_URL || `http://localhost:${port}`
-    }/verify/${ticketId}`;
-    const qrCodeUrl = await qr.toDataURL(verificationUrl);
+    try {
+        // --- الخطوة 1: التحقق أولاً ---
+        // سنتحقق إذا كان هذا الإيميل مسجل مسبقًا في هذه المناسبة تحديدًا
+        const checkResult = await db.query(
+            `SELECT id FROM registrations WHERE event_id = $1 AND email = $2`,
+            [eventId, email]
+        );
 
-    // Add your email sending logic here
+        // إذا وجدنا أي نتيجة، فهذا يعني أنه مسجل بالفعل
+        if (checkResult.rows.length > 0) {
+            return res.status(400).send(`
+                <body class="bg-gray-100 flex items-center justify-center min-h-screen">
+                <script src="https://cdn.tailwindcss.com"></script>
+                <div class="text-center bg-white p-10 rounded-xl shadow-lg">
+                    <h1 class="text-3xl font-bold text-yellow-700 mb-4">تنبيه</h1>
+                    <p class="text-gray-600 mb-6">هذا البريد الإلكتروني مسجل بالفعل في هذه المناسبة.</p>
+                    <a href="/register/${eventId}" class="text-blue-500 hover:underline">العودة إلى صفحة التسجيل</a>
+                </div>
+                </body>
+            `);
+        }
 
-    res.status(200).send(`
+        // --- الخطوة 2: التسجيل ---
+        // إذا لم يكن مسجلاً، نقوم بإضافته
+        await db.query(
+            `INSERT INTO registrations (event_id, name, email, dynamic_data, ticket_id) VALUES ($1, $2, $3, $4, $5)`,
+            [eventId, name, email, dynamicDataJson, ticketId]
+        );
+
+        // --- الخطوة 3: إنشاء QR Code وإرسال الرد ---
+        const verificationUrl = `${process.env.RENDER_EXTERNAL_URL || `http://localhost:${port}`}/verify/${ticketId}`;
+        const qrCodeUrl = await qr.toDataURL(verificationUrl);
+
+        // (يمكنك وضع كود إرسال الإيميل هنا)
+
+        res.status(200).send(`
             <body class="bg-gray-100 flex items-center justify-center min-h-screen">
             <script src="https://cdn.tailwindcss.com"></script>
             <div class="text-center bg-white p-10 rounded-xl shadow-lg">
@@ -158,10 +182,14 @@ app.post("/register/:eventId", async (req, res) => {
                 <a href="${qrCodeUrl}" download="ticket-qrcode.png" class="mt-4 inline-block bg-green-500 text-white py-3 px-6 rounded-lg font-semibold hover:bg-green-600">تحميل الـ QR Code</a>
             </div></body>
         `);
-  } catch (err) {
-    console.error("Registration Submission Error:", err);
-    res.status(400).send("Error: Email may be already registered.");
-  }
+
+    } catch (err) {
+        // في حال حدوث خطأ غير متوقع (مثل مشكلة في قاعدة البيانات)
+        console.error("--- DATABASE INSERTION ERROR ---");
+        console.error(err); // سيطبع الخطأ الفعلي من قاعدة البيانات في سجلات Render
+        console.error("---------------------------------");
+        res.status(500).send("حدث خطأ غير متوقع أثناء التسجيل. يرجى مراجعة سجلات الخادم.");
+    }
 });
 
 // QR Code verification route
