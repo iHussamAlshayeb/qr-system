@@ -37,7 +37,7 @@ const checkAuth = (req, res, next) => {
 app.get("/", async (req, res) => {
   try {
     const result = await db.query(
-      `SELECT * FROM events ORDER BY created_at DESC`
+      `SELECT * FROM events WHERE is_active = TRUE ORDER BY created_at DESC`
     );
     const eventsGridHtml = result.rows
       .map(
@@ -289,34 +289,37 @@ app.post("/login", (req, res) => {
 });
 
 // Main page for event management
-app.get("/admin/events", checkAuth, async (req, res) => {
-  try {
-    const result = await db.query(
-      `SELECT * FROM events ORDER BY created_at DESC`
-    );
-    const eventRows = result.rows
-      .map(
-        (event) => `
-            <tr>
+app.get('/admin/events', checkAuth, async (req, res) => {
+    try {
+        const result = await db.query(`SELECT * FROM events ORDER BY created_at DESC`);
+        const eventRows = result.rows.map(event => `
+            <tr class="${event.is_active ? '' : 'bg-gray-200 opacity-60'}">
                 <td class="py-3 px-4">${event.name}</td>
+                <td class="py-3 px-4">
+                    <span class="px-2 py-1 font-semibold text-xs rounded-full ${event.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
+                        ${event.is_active ? 'نشط' : 'غير نشط'}
+                    </span>
+                </td>
                 <td class="py-3 px-4"><a href="/register/${event.id}" target="_blank" class="text-blue-500 hover:underline">/register/${event.id}</a></td>
-                <td class="py-3 px-4"><a href="/admin/dashboard/${event.id}" class="font-bold text-green-600 hover:underline">عرض لوحة التحكم</a></td>
+                <td class="py-3 px-4 flex gap-4">
+                    <a href="/admin/dashboard/${event.id}" class="font-bold text-blue-600 hover:underline">إدارة</a>
+                    <form action="/admin/events/toggle/${event.id}" method="POST" class="inline-block">
+                        <button type="submit" class="font-bold text-yellow-600 hover:underline">تغيير الحالة</button>
+                    </form>
+                    <form action="/admin/events/delete/${event.id}" method="POST" onsubmit="return confirm('تحذير: سيتم حذف المناسبة وكل المسجلين فيها نهائياً. هل أنت متأكد؟');" class="inline-block">
+                        <button type="submit" class="font-bold text-red-600 hover:underline">حذف</button>
+                    </form>
+                </td>
             </tr>
-        `
-      )
-      .join("");
-    fs.readFile(
-      path.join(__dirname, "events.html"),
-      "utf8",
-      (err, htmlData) => {
-        if (err) throw err;
-        res.send(htmlData.replace("{-- EVENTS_TABLE_ROWS --}", eventRows));
-      }
-    );
-  } catch (err) {
-    console.error("Admin Events Error:", err);
-    res.status(500).send("Error fetching events.");
-  }
+        `).join('');
+        
+        fs.readFile(path.join(__dirname, "events.html"), "utf8", (err, htmlData) => {
+            if (err) throw err;
+            res.send(htmlData.replace("{-- EVENTS_TABLE_ROWS --}", eventRows));
+        });
+    } catch (err) {
+        res.status(500).send("خطأ في جلب المناسبات.");
+    }
 });
 
 // Add a new event
@@ -342,6 +345,29 @@ app.post("/admin/events/add", checkAuth, async (req, res) => {
     console.error("Add Event Error:", err);
     res.status(500).send("Error creating event.");
   }
+});
+
+// مسار لتغيير حالة المناسبة (نشط/غير نشط)
+app.post('/admin/events/toggle/:eventId', checkAuth, async (req, res) => {
+    const { eventId } = req.params;
+    try {
+        await db.query(`UPDATE events SET is_active = NOT is_active WHERE id = $1`, [eventId]);
+        res.redirect('/admin/events');
+    } catch (err) {
+        res.status(500).send("خطأ في تغيير حالة المناسبة.");
+    }
+});
+
+// مسار لحذف مناسبة
+app.post('/admin/events/delete/:eventId', checkAuth, async (req, res) => {
+    const { eventId } = req.params;
+    try {
+        // بفضل خاصية ON DELETE CASCADE، سيتم حذف كل المسجلين والحقول تلقائيًا
+        await db.query(`DELETE FROM events WHERE id = $1`, [eventId]);
+        res.redirect('/admin/events');
+    } catch (err) {
+        res.status(500).send("خطأ في حذف المناسبة.");
+    }
 });
 
 // Event-specific dashboard

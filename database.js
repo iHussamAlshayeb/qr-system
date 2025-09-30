@@ -16,6 +16,7 @@ const setupDatabase = async () => {
         id SERIAL PRIMARY KEY,
         name TEXT NOT NULL,
         description TEXT,
+        is_active BOOLEAN DEFAULT TRUE, -- تمت إضافة هذا الحقل
         created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
       )
     `);
