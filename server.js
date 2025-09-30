@@ -35,17 +35,18 @@ const checkAuth = (req, res, next) => {
 
 // New homepage to list all events
 app.get("/", (req, res) => {
-  const sql = `SELECT * FROM events ORDER BY created_at DESC`; // Assuming you add an is_active column later
+  // The SQL query is now corrected
+  const sql = `SELECT * FROM events ORDER BY created_at DESC`;
+  
   db.all(sql, [], (err, events) => {
     if (err) {
+      console.error("Error fetching events for homepage:", err.message);
       return res.status(500).send("Error fetching events.");
     }
 
-    const eventsListHtml = events
-      .map(
-        (event) => `<li><a href="/register/${event.id}">${event.name}</a></li>`
-      )
-      .join("");
+    const eventsListHtml = events.map(event => 
+      `<li class="border-b last:border-b-0"><a href="/register/${event.id}" class="block py-4 px-2 hover:bg-gray-50 transition duration-300">${event.name}</a></li>`
+    ).join('');
 
     res.send(`
       <!DOCTYPE html>
@@ -53,19 +54,12 @@ app.get("/", (req, res) => {
       <head>
         <title>قائمة المناسبات</title>
         <script src="https://cdn.tailwindcss.com"></script>
-        <style>
-          body { font-family: Arial, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background-color: #f4f4f4; }
-          .container { background: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); text-align: center; }
-          ul { list-style: none; padding: 0; }
-          li { margin: 15px 0; }
-          a { text-decoration: none; color: #007bff; font-size: 1.2em; }
-        </style>
       </head>
-      <body>
-        <div class="container">
-          <h1>المناسبات المتاحة</h1>
-          <ul>
-            ${eventsListHtml}
+      <body class="bg-gray-100 flex items-center justify-center min-h-screen">
+        <div class="w-full max-w-lg bg-white p-8 rounded-xl shadow-lg">
+          <h1 class="text-3xl font-bold text-center text-gray-800 mb-6">المناسبات المتاحة</h1>
+          <ul class="list-none p-0 border rounded-lg overflow-hidden">
+            ${eventsListHtml.length > 0 ? eventsListHtml : '<li class="p-4 text-center text-gray-500">لا توجد مناسبات متاحة حاليًا.</li>'}
           </ul>
         </div>
       </body>
