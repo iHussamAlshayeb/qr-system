@@ -698,6 +698,49 @@ app.post('/admin/users/add', checkAdmin, async (req, res) => {
     }
 });
 
+// Scanner's welcome page
+app.get('/scanner', checkScanner, (req, res) => {
+    // We only need to check if the user is logged in. 
+    // The login route already directs them here if they are a scanner.
+    res.send(`
+        <!DOCTYPE html>
+        <html lang="ar" dir="rtl">
+        <head>
+            <meta charset="UTF-8">
+            <title>جاهز للمسح</title>
+            <script src="https://cdn.tailwindcss.com"></script>
+        </head>
+        <body class="bg-gray-100 flex items-center justify-center min-h-screen">
+            <div class="w-full max-w-md bg-white p-8 rounded-xl shadow-lg text-center">
+                <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-blue-100 mb-4">
+                    <svg class="h-8 w-8 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 4.875c0-1.036.84-1.875 1.875-1.875h4.5c1.036 0 1.875.84 1.875 1.875v4.5c0 1.036-.84 1.875-1.875 1.875h-4.5A1.875 1.875 0 013.75 9.375v-4.5zM3.75 14.625c0-1.036.84-1.875 1.875-1.875h4.5c1.036 0 1.875.84 1.875 1.875v4.5c0 1.036-.84 1.875-1.875 1.875h-4.5a1.875 1.875 0 01-1.875-1.875v-4.5zM13.5 4.875c0-1.036.84-1.875 1.875-1.875h4.5c1.036 0 1.875.84 1.875 1.875v4.5c0 1.036-.84 1.875-1.875 1.875h-4.5a1.875 1.875 0 01-1.875-1.875v-4.5zM13.5 14.625c0-1.036.84-1.875 1.875-1.875h4.5c1.036 0 1.875.84 1.875 1.875v4.5c0 1.036-.84 1.875-1.875 1.875h-4.5a1.875 1.875 0 01-1.875-1.875v-4.5z" />
+                    </svg>
+                </div>
+                <h1 class="text-2xl font-bold text-gray-800">أهلاً بك، ${req.session.username}!</h1>
+                <p class="text-gray-600 mt-2">أنت الآن جاهز لمسح تذاكر الزوار.</p>
+                <p class="mt-4 font-semibold text-blue-600">الرجاء استخدام كاميرا جوالك الأساسية لمسح رموز QR.</p>
+                
+                <div class="mt-8">
+                    <a href="/logout" class="w-full bg-red-500 text-white py-3 rounded-lg font-semibold hover:bg-red-600 transition duration-300">تسجيل الخروج</a>
+                </div>
+            </div>
+        </body>
+        </html>
+    `);
+});
+
+// Logout route
+app.get('/logout', (req, res) => {
+    req.session.destroy((err) => {
+        if (err) {
+            return res.redirect('/');
+        }
+        res.clearCookie('connect.sid'); // The default session cookie name
+        res.redirect('/login');
+    });
+});
+
 // server.js (في نهاية الملف)
 
 // دالة لبدء تشغيل الخادم
