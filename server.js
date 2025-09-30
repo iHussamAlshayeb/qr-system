@@ -200,7 +200,7 @@ app.post('/admin/events/add', checkAuth, async (req, res) => {
     }
 });
 
-// Event-specific dashboard
+// **لوحة التحكم الكاملة لمناسبة معينة**
 app.get('/admin/dashboard/:eventId', checkAuth, async (req, res) => {
     const { eventId } = req.params;
     try {
@@ -213,21 +213,100 @@ app.get('/admin/dashboard/:eventId', checkAuth, async (req, res) => {
         ]);
 
         const event = eventResult.rows[0];
-        if (!event) return res.status(404).send("Event not found.");
+        if (!event) return res.status(404).send("المناسبة غير موجودة.");
 
         const totalRow = totalResult.rows[0];
         const attendedRow = attendedResult.rows[0];
         const users = usersResult.rows;
         const fields = fieldsResult.rows;
 
-        const userRows = users.map(user => `...`).join(''); // Your existing userRows HTML generation
-        const fieldRows = fields.map(field => `...`).join(''); // Your existing fieldRows HTML generation
+        const userRows = users.map(user => `
+            <tr class="border-b">
+                <td class="py-3 px-4">${user.name}</td>
+                <td class="py-3 px-4">${user.email}</td>
+                <td class="py-3 px-4">
+                    <span class="px-2 py-1 text-xs font-semibold rounded-full ${user.status === 'USED' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}">
+                        ${user.status === 'USED' ? 'حضر' : 'لم يحضر'}
+                    </span>
+                </td>
+                <td class="py-3 px-4">${new Date(user.created_at).toLocaleString('ar-SA')}</td>
+                <td class="py-3 px-4">
+                    <a href="/admin/registration/${user.id}" class="text-blue-500 hover:underline">عرض التفاصيل</a>
+                </td>
+            </tr>
+        `).join('');
 
-        res.send(`... Your full admin dashboard HTML, now populated with this data ...`);
-    } catch (err) {
+        const fieldRows = fields.map(field => `
+            <tr class="border-b">
+                <td class="py-3 px-4">${field.label}</td>
+                <td class="py-3 px-4 font-mono text-sm">${field.name}</td>
+                <td class="py-3 px-4">${field.type}</td>
+                <td class="py-3 px-4">${field.required ? 'نعم' : 'لا'}</td>
+                <td class="py-3 px-4">
+                    <form action="/admin/delete-field/${eventId}/${field.id}" method="POST" onsubmit="return confirm('هل أنت متأكد؟');">
+                        <button type="submit" class="bg-red-500 text-white px-3 py-1 text-sm rounded-md hover:bg-red-600">حذف</button>
+                    </form>
+                </td>
+            </tr>
+        `).join('');
+
+        res.send(`
+            <!DOCTYPE html>
+            <html lang="ar" dir="rtl">
+            <head>
+                <meta charset="UTF-8">
+                <title>لوحة تحكم: ${event.name}</title>
+                <script src="https://cdn.tailwindcss.com"></script>
+            </head>
+            <body class="bg-gray-100">
+                <div class="container mx-auto max-w-6xl mt-10 mb-10 p-8 bg-white rounded-xl shadow-lg">
+                    <a href="/admin/events" class="inline-block mb-8 bg-gray-200 text-gray-700 py-2 px-4 rounded-lg font-semibold hover:bg-gray-300 transition duration-300">
+                        &larr; العودة إلى كل المناسبات
+                    </a>
+                    <h1 class="text-3xl font-bold text-center text-gray-800">لوحة تحكم لـ: ${event.name}</h1>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 my-8">
+                        <div class="bg-blue-50 p-6 rounded-lg text-center"><h3 class="text-lg font-semibold text-blue-800">إجمالي المسجلين</h3><p class="text-4xl font-bold text-blue-600 mt-2">${totalRow.total}</p></div>
+                        <div class="bg-green-50 p-6 rounded-lg text-center"><h3 class="text-lg font-semibold text-green-800">إجمالي الحضور</h3><p class="text-4xl font-bold text-green-600 mt-2">${attendedRow.attended}</p></div>
+                    </div>
+                    <div class="mt-10">
+                        <h2 class="text-2xl font-semibold text-gray-700 mb-4">قائمة الحضور</h2>
+                        <div class="overflow-x-auto border rounded-lg">
+                            <table class="min-w-full bg-white text-sm text-gray-700">
+                                <thead class="bg-gray-800 text-white"><tr><th class="text-right py-3 px-4">الاسم</th><th class="text-right py-3 px-4">الإيميل</th><th class="text-right py-3 px-4">الحالة</th><th class="text-right py-3 px-4">وقت التسجيل</th><th class="text-right py-3 px-4">الإجراءات</th></tr></thead>
+                                <tbody class="divide-y">${userRows}</tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="mt-12">
+                        <h2 class="text-2xl font-semibold text-gray-700 mb-4">إدارة حقول الفورم</h2>
+                        <div class="overflow-x-auto border rounded-lg">
+                            <table class="min-w-full bg-white text-sm text-gray-700">
+                                <thead class="bg-gray-800 text-white"><tr><th class="text-right py-3 px-4">اسم الحقل</th><th class="text-right py-3 px-4">الاسم البرمجي</th><th class="text-right py-3 px-4">النوع</th><th class="text-right py-3 px-4">إجباري</th><th class="text-right py-3 px-4">إجراءات</th></tr></thead>
+                                <tbody class="divide-y">${fieldRows}</tbody>
+                            </table>
+                        </div>
+                        <div class="mt-6 p-6 bg-gray-50 rounded-lg border">
+                            <h3 class="text-xl font-semibold text-gray-700 mb-4">إضافة حقل جديد</h3>
+                            <form action="/admin/add-field/${eventId}" method="POST" class="grid grid-cols-1 md:grid-cols-5 gap-4 items-center">
+                                <input type="text" name="label" placeholder="اسم الحقل" class="md:col-span-1 w-full px-3 py-2 border rounded-lg" required>
+                                <input type="text" name="name" placeholder="الاسم البرمجي" class="md:col-span-1 w-full px-3 py-2 border rounded-lg" required>
+                                <select name="type" id="fieldType" onchange="toggleOptionsInput()" class="md:col-span-1 w-full px-3 py-2 border rounded-lg"><option value="text">نص</option><option value="email">إيميل</option><option value="number">رقم</option><option value="dropdown">قائمة منسدلة</option></select>
+                                <input type="text" name="options" id="optionsInput" placeholder="الخيارات (فاصلة)" class="md:col-span-2 w-full px-3 py-2 border rounded-lg" style="display:none;">
+                                <div class="md:col-span-5 flex items-center justify-between mt-2">
+                                    <label class="flex items-center gap-2 text-gray-600"><input type="checkbox" name="required" value="1" checked class="h-4 w-4 rounded"> إجباري</label>
+                                    <button type="submit" class="bg-blue-600 text-white py-2 px-5 rounded-lg font-semibold hover:bg-blue-700">إضافة</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                <script>function toggleOptionsInput(){var t=document.getElementById("fieldType").value,e=document.getElementById("optionsInput");"dropdown"===t?(e.style.display="block",e.required=!0,e.classList.remove("md:col-span-2")):(e.style.display="none",e.required=!1,e.classList.add("md:col-span-2"))}</script>
+            </body></html>
+        `);
+    }).catch(err => {
         console.error("Dashboard Error:", err);
-        res.status(500).send('Error loading dashboard.');
-    }
+        res.status(500).send('خطأ في تحميل لوحة التحكم.');
+    });
 });
 
 // Show registration details
