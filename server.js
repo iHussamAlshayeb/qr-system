@@ -33,9 +33,8 @@ const checkAuth = (req, res, next) => {
 
 // --- المسارات العامة ---
 
-// New homepage to list all events
+// Homepage to list all events in a card grid
 app.get("/", (req, res) => {
-  // The SQL query is now corrected
   const sql = `SELECT * FROM events ORDER BY created_at DESC`;
   
   db.all(sql, [], (err, events) => {
@@ -44,9 +43,17 @@ app.get("/", (req, res) => {
       return res.status(500).send("Error fetching events.");
     }
 
-    const eventsListHtml = events.map(event => 
-      `<li class="border-b last:border-b-0"><a href="/register/${event.id}" class="block py-4 px-2 hover:bg-gray-50 transition duration-300">${event.name}</a></li>`
-    ).join('');
+    const eventsGridHtml = events.map(event => `
+      <div class="bg-white rounded-xl shadow-md overflow-hidden transform hover:-translate-y-1 transition-transform duration-300">
+        <div class="p-6">
+          <h3 class="text-xl font-bold text-gray-800 mb-2">${event.name}</h3>
+          <p class="text-gray-600 text-sm mb-4">${event.description || ''}</p>
+          <a href="/register/${event.id}" class="mt-4 inline-block bg-blue-600 text-white py-2 px-5 rounded-lg font-semibold hover:bg-blue-700">
+            سجل الآن
+          </a>
+        </div>
+      </div>
+    `).join('');
 
     res.send(`
       <!DOCTYPE html>
@@ -55,18 +62,21 @@ app.get("/", (req, res) => {
         <title>قائمة المناسبات</title>
         <script src="https://cdn.tailwindcss.com"></script>
       </head>
-      <body class="bg-gray-100 flex items-center justify-center min-h-screen">
-        <div class="w-full max-w-lg bg-white p-8 rounded-xl shadow-lg">
-          <h1 class="text-3xl font-bold text-center text-gray-800 mb-6">المناسبات المتاحة</h1>
-          <ul class="list-none p-0 border rounded-lg overflow-hidden">
-            ${eventsListHtml.length > 0 ? eventsListHtml : '<li class="p-4 text-center text-gray-500">لا توجد مناسبات متاحة حاليًا.</li>'}
-          </ul>
+      <body class="bg-gray-100">
+        <div class="container mx-auto max-w-5xl py-12 px-4">
+          <h1 class="text-4xl font-bold text-center text-gray-800 mb-10">المناسبات المتاحة</h1>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            ${eventsGridHtml.length > 0 ? eventsGridHtml : '<p class="text-center text-gray-500 col-span-3">لا توجد مناسبات متاحة حاليًا.</p>'}
+          </div>
         </div>
       </body>
       </html>
     `);
   });
 });
+
+
 // صفحة التسجيل لمناسبة معينة
 app.get("/register/:eventId", (req, res) => {
   const { eventId } = req.params;
