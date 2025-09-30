@@ -1,11 +1,11 @@
 // database.js
-const { Pool } = require('pg');
+const { Pool } = require("pg");
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: {
-    rejectUnauthorized: false
-  }
+    rejectUnauthorized: false,
+  },
 });
 
 const setupDatabase = async () => {
@@ -19,7 +19,7 @@ const setupDatabase = async () => {
         created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    
+
     // --- التعديل هنا ---
     await client.query(`
       CREATE TABLE IF NOT EXISTS registrations (
@@ -48,7 +48,7 @@ const setupDatabase = async () => {
         is_active BOOLEAN NOT NULL DEFAULT TRUE
       )
     `);
-    console.log('PostgreSQL database tables are ready.');
+    console.log("PostgreSQL database tables are ready.");
   } finally {
     client.release();
   }
@@ -56,5 +56,5 @@ const setupDatabase = async () => {
 
 module.exports = {
   query: (text, params) => pool.query(text, params),
-  setupDatabase: setupDatabase
+  setupDatabase: setupDatabase,
 };

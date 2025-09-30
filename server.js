@@ -244,7 +244,10 @@ app.get("/verify/:ticketId", checkAuth, async (req, res) => {
     let dynamicDataHtml = Object.entries(dynamicData)
       .map(
         ([key, value]) =>
-          `<div class="py-2"><p class="text-sm font-semibold text-gray-700">${key.replace(/_/g," ")}
+          `<div class="py-2"><p class="text-sm font-semibold text-gray-700">${key.replace(
+            /_/g,
+            " "
+          )}
         </p><p class="text-gray-900">${value}</p></div>`
       )
       .join("");
@@ -488,29 +491,31 @@ app.get("/admin/dashboard/:eventId", checkAuth, async (req, res) => {
 });
 
 // Show registration details
-app.get('/admin/registration/:registrationId', checkAuth, async (req, res) => {
-    const { registrationId } = req.params;
-    try {
-        const result = await db.query(
-            `SELECT r.*, e.name as event_name 
+app.get("/admin/registration/:registrationId", checkAuth, async (req, res) => {
+  const { registrationId } = req.params;
+  try {
+    const result = await db.query(
+      `SELECT r.*, e.name as event_name 
              FROM registrations r
              JOIN events e ON r.event_id = e.id
              WHERE r.id = $1`,
-            [registrationId]
-        );
+      [registrationId]
+    );
 
-        const row = result.rows[0];
-        if (!row) return res.status(404).send("التسجيل غير موجود.");
+    const row = result.rows[0];
+    if (!row) return res.status(404).send("التسجيل غير موجود.");
 
-        // --- THIS IS THE MISSING PART ---
-        const dynamicData = row.dynamic_data || {};
-        let dynamicDataHtml = Object.entries(dynamicData).map(([key, value]) => {
-            const formattedKey = key.replace(/_/g, ' '); 
-            return `<div class="mb-2"><dt class="font-semibold text-gray-800 capitalize">${formattedKey}</dt><dd class="text-gray-600">${value}</dd></div>`;
-        }).join('');
-        // --- END OF MISSING PART ---
+    // --- THIS IS THE MISSING PART ---
+    const dynamicData = row.dynamic_data || {};
+    let dynamicDataHtml = Object.entries(dynamicData)
+      .map(([key, value]) => {
+        const formattedKey = key.replace(/_/g, " ");
+        return `<div class="mb-2"><dt class="font-semibold text-gray-800 capitalize">${formattedKey}</dt><dd class="text-gray-600">${value}</dd></div>`;
+      })
+      .join("");
+    // --- END OF MISSING PART ---
 
-        res.send(`
+    res.send(`
             <!DOCTYPE html>
             <html lang="ar" dir="rtl">
             <head>
@@ -520,35 +525,53 @@ app.get('/admin/registration/:registrationId', checkAuth, async (req, res) => {
             <body class="bg-gray-100 flex items-center justify-center min-h-screen py-12">
                 <div class="w-full max-w-2xl bg-white p-8 rounded-xl shadow-lg">
                     <h1 class="text-2xl font-bold text-center text-gray-800 mb-2">تفاصيل التسجيل</h1>
-                    <p class="text-center text-gray-500 mb-6">للمناسبة: ${row.event_name}</p>
+                    <p class="text-center text-gray-500 mb-6">للمناسبة: ${
+                      row.event_name
+                    }</p>
                     
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
                         <div class="bg-gray-50 p-4 rounded-lg border">
                             <h2 class="font-bold text-lg mb-4 border-b pb-2">البيانات الأساسية</h2>
                             <dl class="space-y-2">
-                                <div><dt class="font-semibold text-gray-800">الاسم الكامل</dt><dd class="text-gray-600">${row.name}</dd></div>
-                                <div><dt class="font-semibold text-gray-800">البريد الإلكتروني</dt><dd class="text-gray-600">${row.email}</dd></div>
-                                <div><dt class="font-semibold text-gray-800">حالة التذكرة</dt><dd class="font-bold ${row.status === 'USED' ? 'text-green-600' : 'text-yellow-600'}">${row.status === 'USED' ? 'تم استخدامها' : 'لم تُستخدم'}</dd></div>
+                                <div><dt class="font-semibold text-gray-800">الاسم الكامل</dt><dd class="text-gray-600">${
+                                  row.name
+                                }</dd></div>
+                                <div><dt class="font-semibold text-gray-800">البريد الإلكتروني</dt><dd class="text-gray-600">${
+                                  row.email
+                                }</dd></div>
+                                <div><dt class="font-semibold text-gray-800">حالة التذكرة</dt><dd class="font-bold ${
+                                  row.status === "USED"
+                                    ? "text-green-600"
+                                    : "text-yellow-600"
+                                }">${
+      row.status === "USED" ? "تم استخدامها" : "لم تُستخدم"
+    }</dd></div>
                             </dl>
                         </div>
                         <div class="bg-gray-50 p-4 rounded-lg border">
                             <h2 class="font-bold text-lg mb-4 border-b pb-2">البيانات الإضافية</h2>
                             <dl class="space-y-2">
-                                ${dynamicDataHtml.length > 0 ? dynamicDataHtml : '<p class="text-gray-500">لا توجد بيانات إضافية.</p>'}
+                                ${
+                                  dynamicDataHtml.length > 0
+                                    ? dynamicDataHtml
+                                    : '<p class="text-gray-500">لا توجد بيانات إضافية.</p>'
+                                }
                             </dl>
                         </div>
                     </div>
                     <div class="text-center mt-8">
-                        <a href="/admin/dashboard/${row.event_id}" class="text-blue-500 hover:underline">&larr; العودة إلى لوحة التحكم</a>
+                        <a href="/admin/dashboard/${
+                          row.event_id
+                        }" class="text-blue-500 hover:underline">&larr; العودة إلى لوحة التحكم</a>
                     </div>
                 </div>
             </body>
             </html>
         `);
-    } catch (err) {
-        console.error("Registration Details Error:", err);
-        res.status(500).send("Error fetching registration details.");
-    }
+  } catch (err) {
+    console.error("Registration Details Error:", err);
+    res.status(500).send("Error fetching registration details.");
+  }
 });
 
 // Add/Delete form fields for an event
