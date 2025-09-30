@@ -35,7 +35,7 @@ const checkAuth = (req, res, next) => {
 
 // New homepage to list all events
 app.get("/", (req, res) => {
-  const sql = `SELECT * FROM events WHERE is_active = 1 ORDER BY created_at DESC`; // Assuming you add an is_active column later
+  const sql = `SELECT * FROM events ORDER BY created_at DESC`; // Assuming you add an is_active column later
   db.all(sql, [], (err, events) => {
     if (err) {
       return res.status(500).send("Error fetching events.");
