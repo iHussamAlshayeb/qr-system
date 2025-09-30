@@ -779,7 +779,7 @@ app.get('/admin/registration/:registrationId', checkAuth, async (req, res) => {
 });
 
 // 1. عرض صفحة تعديل بيانات المسجل
-app.get('/admin/registration/edit/:registrationId', checkAuth, async (req, res) => {
+app.get('/admin/registration/edit/:registrationId', checkAdmin, async (req, res) => {
     const { registrationId } = req.params;
     try {
         const result = await db.query('SELECT * FROM registrations WHERE id = $1', [registrationId]);
@@ -819,7 +819,7 @@ app.get('/admin/registration/edit/:registrationId', checkAuth, async (req, res) 
 });
 
 // 2. استقبال البيانات المحدثة وحفظها في قاعدة البيانات
-app.post('/admin/registration/update/:registrationId', checkAuth, async (req, res) => {
+app.post('/admin/registration/update/:registrationId', checkAdmin, async (req, res) => {
     const { registrationId } = req.params;
     const { name, email, ...dynamicData } = req.body;
     
