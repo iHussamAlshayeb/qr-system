@@ -19,7 +19,15 @@ db.serialize(() => {
       ticket_id TEXT NOT NULL UNIQUE,
       status TEXT NOT NULL DEFAULT 'UNUSED',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
+    ),
+    CREATE TABLE IF NOT EXISTS form_fields (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    label TEXT NOT NULL,                      -- اسم الحقل الذي يراه المستخدم (مثال: "الاسم الكامل")
+    name TEXT NOT NULL UNIQUE,                -- الاسم البرمجي للحقل (مثال: "full_name")
+    type TEXT NOT NULL DEFAULT 'text',        -- نوع الحقل (text, email, number)
+    required BOOLEAN NOT NULL DEFAULT 1,      -- هل الحقل إجباري؟ (1 = نعم, 0 = لا)
+    is_active BOOLEAN NOT NULL DEFAULT 1      -- هل الحقل مفعل ويظهر في الفورم؟
+  )
   `, (err) => {
     if (err) {
       console.error(err.message);

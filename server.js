@@ -73,95 +73,90 @@ app.get("/scanner", (req, res) => {
 });
 
 // لعرض صفحة لوحة التحكم والإحصائيات
-app.get("/admin", checkAuth, (req, res) => {
+// (استبدل المسار القديم بالكامل بهذا)
+app.get('/admin', checkAuth, (req, res) => {
+  // جلب كل البيانات اللازمة بشكل متوازي
   const sqlTotal = `SELECT COUNT(*) as total FROM registrations`;
   const sqlAttended = `SELECT COUNT(*) as attended FROM registrations WHERE status = 'USED'`;
   const sqlAllUsers = `SELECT name, email, status, created_at FROM registrations ORDER BY created_at DESC`;
+  const sqlAllFields = `SELECT * FROM form_fields ORDER BY id`;
 
-  // 1. جلب العدد الإجمالي للمسجلين
-  db.get(sqlTotal, [], (err, totalRow) => {
-    if (err) return res.status(500).send("خطأ في جلب البيانات");
+  Promise.all([
+    new Promise((resolve, reject) => db.get(sqlTotal, [], (err, row) => err ? reject(err) : resolve(row))),
+    new Promise((resolve, reject) => db.get(sqlAttended, [], (err, row) => err ? reject(err) : resolve(row))),
+    new Promise((resolve, reject) => db.all(sqlAllUsers, [], (err, rows) => err ? reject(err) : resolve(rows))),
+    new Promise((resolve, reject) => db.all(sqlAllFields, [], (err, rows) => err ? reject(err) : resolve(rows)))
+  ]).then(([totalRow, attendedRow, users, fields]) => {
 
-    // 2. جلب عدد الحضور
-    db.get(sqlAttended, [], (err, attendedRow) => {
-      if (err) return res.status(500).send("خطأ في جلب البيانات");
+    // بناء صفوف جدول المستخدمين
+    let userRows = users.map(user => `...`).join(''); // الكود هنا كما هو لم يتغير
 
-      // 3. جلب قائمة كل المسجلين
-      db.all(sqlAllUsers, [], (err, users) => {
-        if (err) return res.status(500).send("خطأ في جلب البيانات");
+    // بناء صفوف جدول حقول الفورم
+    let fieldRows = fields.map(field => `
+      <tr>
+        <td>${field.label}</td>
+        <td>${field.name}</td>
+        <td>${field.type}</td>
+        <td>${field.required ? 'نعم' : 'لا'}</td>
+        <td><button>تعديل</button> <button>حذف</button></td>
+      </tr>
+    `).join('');
 
-        // 4. بناء وإرسال صفحة HTML الديناميكية
-        const pageTitle = "لوحة التحكم";
-        let userRows = users
-          .map(
-            (user) => `
-          <tr>
-            <td>${user.name}</td>
-            <td>${user.email}</td>
-            <td class="${user.status.toLowerCase()}">${
-              user.status === "USED" ? "حضر" : "لم يحضر"
-            }</td>
-            <td>${new Date(user.created_at).toLocaleString("ar-SA")}</td>
-          </tr>
-        `
-          )
-          .join("");
+    // إرسال صفحة HTML الكاملة
+    res.send(`
+      <!DOCTYPE html>
+      <body>
+        <div class="container">
+          <h2 style="margin-top: 40px;">إدارة حقول الفورم</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>اسم الحقل (Label)</th>
+                <th>الاسم البرمجي (Name)</th>
+                <th>النوع</th>
+                <th>إجباري</th>
+                <th>إجراءات</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${fieldRows}
+            </tbody>
+          </table>
 
-        res.send(`
-          <!DOCTYPE html>
-          <html lang="ar" dir="rtl">
-          <head>
-            <meta charset="UTF-8">
-            <title>${pageTitle}</title>
-            <style>
-              body { font-family: Arial, sans-serif; background-color: #f9f9f9; color: #333; margin: 20px; }
-              .container { max-width: 1000px; margin: auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-              h1, h2 { text-align: center; color: #0056b3; }
-              .stats { display: flex; justify-content: space-around; text-align: center; margin: 30px 0; }
-              .stat-box { background: #eef7ff; padding: 20px; border-radius: 8px; width: 45%; }
-              .stat-box h3 { margin-top: 0; }
-              .stat-box p { font-size: 2.5em; font-weight: bold; color: #007bff; margin: 0; }
-              table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-              th, td { padding: 12px; border: 1px solid #ddd; text-align: right; }
-              th { background-color: #007bff; color: white; }
-              tr:nth-child(even) { background-color: #f2f2f2; }
-              .used { color: green; font-weight: bold; }
-              .unused { color: #cc8400; font-weight: bold; }
-            </style>
-          </head>
-          <body>
-            <div class="container">
-              <h1>${pageTitle}</h1>
-              <div class="stats">
-                <div class="stat-box">
-                  <h3>إجمالي المسجلين</h3>
-                  <p>${totalRow.total}</p>
-                </div>
-                <div class="stat-box">
-                  <h3>إجمالي الحضور</h3>
-                  <p>${attendedRow.attended}</p>
-                </div>
-              </div>
-              <h2>قائمة الحضور</h2>
-              <table>
-                <thead>
-                  <tr>
-                    <th>الاسم</th>
-                    <th>البريد الإلكتروني</th>
-                    <th>الحالة</th>
-                    <th>وقت التسجيل</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${userRows}
-                </tbody>
-              </table>
-            </div>
-          </body>
-          </html>
-        `);
-      });
-    });
+          <h3 style="margin-top: 30px;">إضافة حقل جديد</h3>
+          <form action="/admin/add-field" method="POST" class="field-form">
+            <input type="text" name="label" placeholder="اسم الحقل (مثال: رقم الجوال)" required>
+            <input type="text" name="name" placeholder="الاسم البرمجي (مثال: mobile_number)" required>
+            <select name="type">
+              <option value="text">نص (Text)</option>
+              <option value="email">بريد إلكتروني (Email)</option>
+              <option value="number">رقم (Number)</option>
+            </select>
+            <label><input type="checkbox" name="required" value="1" checked> إجباري</label>
+            <button type="submit">إضافة الحقل</button>
+          </form>
+        </div>
+      </body>
+      </html>
+    `);
+  }).catch(err => {
+    console.error(err);
+    res.status(500).send('خطأ في جلب بيانات لوحة التحكم');
+  });
+});
+
+// مسار لإضافة حقل جديد
+app.post('/admin/add-field', checkAuth, (req, res) => {
+  const { label, name, type } = req.body;
+  const required = req.body.required ? 1 : 0; // تحويل قيمة checkbox
+
+  const sql = `INSERT INTO form_fields (label, name, type, required) VALUES (?, ?, ?, ?)`;
+  db.run(sql, [label, name, type, required], (err) => {
+    if (err) {
+      console.error(err.message);
+      return res.status(500).send('خطأ في إضافة الحقل، قد يكون الاسم البرمجي مكررًا.');
+    }
+    res.redirect('/admin'); // أعد التوجيه إلى لوحة التحكم لرؤية التغييرات
   });
 });
 
