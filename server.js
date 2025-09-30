@@ -149,7 +149,7 @@ app.get('/admin', checkAuth, (req, res) => {
     <td>${field.type}</td>
     <td>${field.required ? 'نعم' : 'لا'}</td>
     <td style="display: flex; gap: 5px;">
-      <button disabled>تعديل</button>
+      <button disabled hidden>تعديل</button>
       <form action="/admin/delete-field" method="POST" onsubmit="return confirm('هل أنت متأكد من حذف هذا الحقل؟');">
         <input type="hidden" name="field_id" value="${field.id}">
         <button type="submit" style="background-color: #dc3545;">حذف</button>
