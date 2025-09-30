@@ -698,7 +698,7 @@ app.get("/admin/dashboard/:eventId", checkAdmin, async (req, res) => {
 //   }
 // });
 
-app.get('/admin/registration/:registrationId', checkAuth, async (req, res) => {
+app.get('/admin/registration/:registrationId', checkAdmin, async (req, res) => {
     const { registrationId } = req.params;
     try {
         const result = await db.query(
