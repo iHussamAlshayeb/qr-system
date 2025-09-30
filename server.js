@@ -266,7 +266,7 @@ app.get('/admin/dashboard/:eventId', checkAuth, (req, res) => {
         db.get.bind(db, `SELECT name FROM events WHERE id = ?`, [eventId]),
         db.get.bind(db, `SELECT COUNT(*) as total FROM registrations WHERE event_id = ?`, [eventId]),
         db.get.bind(db, `SELECT COUNT(*) as attended FROM registrations WHERE event_id = ? AND status = 'USED'`, [eventId]),
-        db.all.bind(db, `SELECT name, email, status, created_at FROM registrations WHERE event_id = ? ORDER BY created_at DESC`, [eventId]),
+        db.all.bind(db, `SELECT id, name, email, status, created_at FROM registrations WHERE event_id = ? ORDER BY created_at DESC`, [eventId]),
         db.all.bind(db, `SELECT * FROM form_fields WHERE event_id = ? ORDER BY id`, [eventId])
     ];
 
@@ -274,18 +274,30 @@ app.get('/admin/dashboard/:eventId', checkAuth, (req, res) => {
     .then(([event, totalRow, attendedRow, users, fields]) => {
         if (!event) return res.status(404).send("Event not found.");
 
-        const userRows = users.map(user => `
-            <tr class="border-b">
-                <td class="py-3 px-4">${user.name}</td>
-                <td class="py-3 px-4">${user.email}</td>
-                <td class="py-3 px-4">
-                    <span class="px-2 py-1 text-xs font-semibold rounded-full ${user.status === 'USED' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}">
-                        ${user.status === 'USED' ? 'حضر' : 'لم يحضر'}
-                    </span>
-                </td>
-                <td class="py-3 px-4">${new Date(user.created_at).toLocaleString('ar-SA')}</td>
-            </tr>
-        `).join('');
+       // (داخل app.get('/admin/dashboard/:eventId', ...))
+
+// بناء صفوف جدول المستخدمين مع إضافة رابط التفاصيل
+let userRows = users.map(user => `
+    <tr class="border-b">
+        <td class="py-3 px-4">${user.name}</td>
+        <td class="py-3 px-4">${user.email}</td>
+        <td class="py-3 px-4">
+            <span class="px-2 py-1 text-xs font-semibold rounded-full ${user.status === 'USED' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}">
+                ${user.status === 'USED' ? 'حضر' : 'لم يحضر'}
+            </span>
+        </td>
+        <td class="py-3 px-4">${new Date(user.created_at).toLocaleString('ar-SA')}</td>
+        <td class="py-3 px-4">
+            <a href="/admin/registration/${user.id}" class="text-blue-500 hover:underline">عرض التفاصيل</a>
+        </td>
+    </tr>
+`).join('');
+
+// أيضًا، لا تنسَ إضافة عنوان للعمود الجديد في الـ HTML
+// ابحث عن <thead> الخاص بجدول المستخدمين وعدّله ليصبح هكذا:
+// ...
+// <thead class="bg-gray-800 text-white"><tr><th class="text-right py-3 px-4">الاسم</th><th class="text-right py-3 px-4">الإيميل</th><th class="text-right py-3 px-4">الحالة</th><th class="text-right py-3 px-4">وقت التسجيل</th><th class="text-right py-3 px-4">الإجراءات</th></tr></thead>
+// ...
 
         const fieldRows = fields.map(field => `
             <tr class="border-b">
@@ -329,7 +341,7 @@ app.get('/admin/dashboard/:eventId', checkAuth, (req, res) => {
                         <h2 class="text-2xl font-semibold text-gray-700 mb-4">قائمة الحضور</h2>
                         <div class="overflow-x-auto border rounded-lg">
                             <table class="min-w-full bg-white text-sm text-gray-700">
-                                <thead class="bg-gray-800 text-white"><tr><th class="text-right py-3 px-4">الاسم</th><th class="text-right py-3 px-4">الإيميل</th><th class="text-right py-3 px-4">الحالة</th><th class="text-right py-3 px-4">وقت التسجيل</th></tr></thead>
+                                <thead class="bg-gray-800 text-white"><tr><th class="text-right py-3 px-4">الاسم</th><th class="text-right py-3 px-4">الإيميل</th><th class="text-right py-3 px-4">الحالة</th><th class="text-right py-3 px-4">وقت التسجيل</th><th class="text-right py-3 px-4">الإجراءات</th></tr></thead>
                                 <tbody class="divide-y">${userRows}</tbody>
                             </table>
                         </div>
@@ -364,6 +376,68 @@ app.get('/admin/dashboard/:eventId', checkAuth, (req, res) => {
             </body></html>
         `);
     }).catch(err => res.status(500).send('Error loading dashboard: ' + err));
+});
+
+// مسار جديد لعرض تفاصيل تسجيل معين
+app.get('/admin/registration/:registrationId', checkAuth, (req, res) => {
+    const { registrationId } = req.params;
+    const sql = `SELECT r.*, e.name as event_name 
+                 FROM registrations r
+                 JOIN events e ON r.event_id = e.id
+                 WHERE r.id = ?`;
+
+    db.get(sql, [registrationId], (err, row) => {
+        if (err || !row) {
+            return res.status(404).send("التسجيل غير موجود.");
+        }
+
+        // 1. استخراج البيانات الإضافية وتحويلها من نص إلى كائن
+        const dynamicData = JSON.parse(row.dynamic_data || '{}');
+
+        // 2. بناء كود HTML لعرض البيانات الإضافية
+        let dynamicDataHtml = Object.entries(dynamicData).map(([key, value]) => {
+            // استبدال الشرطات السفلية بمسافات لجعل اسم الحقل أجمل
+            const formattedKey = key.replace(/_/g, ' '); 
+            return `<div class="mb-2"><dt class="font-semibold text-gray-800">${formattedKey}</dt><dd class="text-gray-600">${value}</dd></div>`;
+        }).join('');
+
+        // 3. بناء الصفحة الكاملة
+        res.send(`
+            <!DOCTYPE html>
+            <html lang="ar" dir="rtl">
+            <head>
+                <title>تفاصيل التسجيل</title>
+                <script src="https://cdn.tailwindcss.com"></script>
+            </head>
+            <body class="bg-gray-100 flex items-center justify-center min-h-screen">
+                <div class="w-full max-w-2xl bg-white p-8 rounded-xl shadow-lg">
+                    <h1 class="text-2xl font-bold text-center text-gray-800 mb-2">تفاصيل التسجيل</h1>
+                    <p class="text-center text-gray-500 mb-6">للمناسبة: ${row.event_name}</p>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h2 class="font-bold text-lg mb-4 border-b pb-2">البيانات الأساسية</h2>
+                            <dl>
+                                <div class="mb-2"><dt class="font-semibold text-gray-800">الاسم الكامل</dt><dd class="text-gray-600">${row.name}</dd></div>
+                                <div class="mb-2"><dt class="font-semibold text-gray-800">البريد الإلكتروني</dt><dd class="text-gray-600">${row.email}</dd></div>
+                                <div class="mb-2"><dt class="font-semibold text-gray-800">حالة التذكرة</dt><dd class="font-bold ${row.status === 'USED' ? 'text-green-600' : 'text-yellow-600'}">${row.status === 'USED' ? 'تم استخدامها' : 'لم تُستخدم'}</dd></div>
+                            </dl>
+                        </div>
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h2 class="font-bold text-lg mb-4 border-b pb-2">البيانات الإضافية</h2>
+                            <dl>
+                                ${dynamicDataHtml.length > 0 ? dynamicDataHtml : '<p class="text-gray-500">لا توجد بيانات إضافية.</p>'}
+                            </dl>
+                        </div>
+                    </div>
+                    <div class="text-center mt-8">
+                        <a href="/admin/dashboard/${row.event_id}" class="text-blue-500 hover:underline">&larr; العودة إلى لوحة التحكم</a>
+                    </div>
+                </div>
+            </body>
+            </html>
+        `);
+    });
 });
 
 // إضافة وحذف الحقول لمناسبة معينة
