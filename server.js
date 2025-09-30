@@ -132,22 +132,22 @@ app.get("/register/:eventId", async (req, res) => {
 
 // Handle form submission
 app.post("/register/:eventId", async (req, res) => {
-    const { eventId } = req.params;
-    const { name, email, ...dynamicData } = req.body;
-    const ticketId = uuidv4();
-    const dynamicDataJson = JSON.stringify(dynamicData);
+  const { eventId } = req.params;
+  const { name, email, ...dynamicData } = req.body;
+  const ticketId = uuidv4();
+  const dynamicDataJson = JSON.stringify(dynamicData);
 
-    try {
-        // --- الخطوة 1: التحقق أولاً ---
-        // سنتحقق إذا كان هذا الإيميل مسجل مسبقًا في هذه المناسبة تحديدًا
-        const checkResult = await db.query(
-            `SELECT id FROM registrations WHERE event_id = $1 AND email = $2`,
-            [eventId, email]
-        );
+  try {
+    // --- الخطوة 1: التحقق أولاً ---
+    // سنتحقق إذا كان هذا الإيميل مسجل مسبقًا في هذه المناسبة تحديدًا
+    const checkResult = await db.query(
+      `SELECT id FROM registrations WHERE event_id = $1 AND email = $2`,
+      [eventId, email]
+    );
 
-        // إذا وجدنا أي نتيجة، فهذا يعني أنه مسجل بالفعل
-        if (checkResult.rows.length > 0) {
-            return res.status(400).send(`
+    // إذا وجدنا أي نتيجة، فهذا يعني أنه مسجل بالفعل
+    if (checkResult.rows.length > 0) {
+      return res.status(400).send(`
                 <body class="bg-gray-100 flex items-center justify-center min-h-screen">
                 <script src="https://cdn.tailwindcss.com"></script>
                 <div class="text-center bg-white p-10 rounded-xl shadow-lg">
@@ -157,22 +157,24 @@ app.post("/register/:eventId", async (req, res) => {
                 </div>
                 </body>
             `);
-        }
+    }
 
-        // --- الخطوة 2: التسجيل ---
-        // إذا لم يكن مسجلاً، نقوم بإضافته
-        await db.query(
-            `INSERT INTO registrations (event_id, name, email, dynamic_data, ticket_id) VALUES ($1, $2, $3, $4, $5)`,
-            [eventId, name, email, dynamicDataJson, ticketId]
-        );
+    // --- الخطوة 2: التسجيل ---
+    // إذا لم يكن مسجلاً، نقوم بإضافته
+    await db.query(
+      `INSERT INTO registrations (event_id, name, email, dynamic_data, ticket_id) VALUES ($1, $2, $3, $4, $5)`,
+      [eventId, name, email, dynamicDataJson, ticketId]
+    );
 
-        // --- الخطوة 3: إنشاء QR Code وإرسال الرد ---
-        const verificationUrl = `${process.env.RENDER_EXTERNAL_URL || `http://localhost:${port}`}/verify/${ticketId}`;
-        const qrCodeUrl = await qr.toDataURL(verificationUrl);
+    // --- الخطوة 3: إنشاء QR Code وإرسال الرد ---
+    const verificationUrl = `${
+      process.env.RENDER_EXTERNAL_URL || `http://localhost:${port}`
+    }/verify/${ticketId}`;
+    const qrCodeUrl = await qr.toDataURL(verificationUrl);
 
-        // (يمكنك وضع كود إرسال الإيميل هنا)
+    // (يمكنك وضع كود إرسال الإيميل هنا)
 
-        res.status(200).send(`
+    res.status(200).send(`
             <body class="bg-gray-100 flex items-center justify-center min-h-screen">
             <script src="https://cdn.tailwindcss.com"></script>
             <div class="text-center bg-white p-10 rounded-xl shadow-lg">
@@ -182,14 +184,15 @@ app.post("/register/:eventId", async (req, res) => {
                 <a href="${qrCodeUrl}" download="ticket-qrcode.png" class="mt-4 inline-block bg-green-500 text-white py-3 px-6 rounded-lg font-semibold hover:bg-green-600">تحميل الـ QR Code</a>
             </div></body>
         `);
-
-    } catch (err) {
-        // في حال حدوث خطأ غير متوقع (مثل مشكلة في قاعدة البيانات)
-        console.error("--- DATABASE INSERTION ERROR ---");
-        console.error(err); // سيطبع الخطأ الفعلي من قاعدة البيانات في سجلات Render
-        console.error("---------------------------------");
-        res.status(500).send("حدث خطأ غير متوقع أثناء التسجيل. يرجى مراجعة سجلات الخادم.");
-    }
+  } catch (err) {
+    // في حال حدوث خطأ غير متوقع (مثل مشكلة في قاعدة البيانات)
+    console.error("--- DATABASE INSERTION ERROR ---");
+    console.error(err); // سيطبع الخطأ الفعلي من قاعدة البيانات في سجلات Render
+    console.error("---------------------------------");
+    res
+      .status(500)
+      .send("حدث خطأ غير متوقع أثناء التسجيل. يرجى مراجعة سجلات الخادم.");
+  }
 });
 
 // QR Code verification route
@@ -223,7 +226,21 @@ app.get("/verify/:ticketId", checkAuth, async (req, res) => {
           )}</p><p class="text-gray-900">${value}</p></div>`
       )
       .join("");
-    res.send(`... HTML for successful verification with dynamic data ...`);
+    res.send(`
+            <!DOCTYPE html><html lang="ar" dir="rtl"><head><title>تم التحقق</title><script src="https://cdn.tailwindcss.com"></script></head>
+            <body class="bg-gray-100 flex items-center justify-center min-h-screen">
+            <div class="w-full max-w-md bg-white p-8 rounded-xl shadow-lg text-center">
+                <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100"><svg class="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg></div>
+                <h1 class="text-3xl font-bold text-green-700 mt-4">تم التحقق بنجاح</h1>
+                <p class="text-gray-600 mt-2">مرحبًا بك!</p>
+                <div class="mt-6 text-left bg-gray-50 p-4 rounded-lg border divide-y">
+                    <div class="py-2"><p class="text-sm font-semibold text-gray-700">المناسبة</p><p class="text-gray-900">${row.event_name}</p></div>
+                    <div class="py-2"><p class="text-sm font-semibold text-gray-700">الاسم</p><p class="text-gray-900">${row.name}</p></div>
+                    <div class="py-2"><p class="text-sm font-semibold text-gray-700">البريد الإلكتروني</p><p class="text-gray-900">${row.email}</p></div>
+                    ${dynamicDataHtml}
+                </div>
+            </div></body></html>
+        `);
   } catch (err) {
     console.error("Verification Error:", err);
     res.status(500).send("Server error during verification.");
@@ -303,64 +320,93 @@ app.post("/admin/events/add", checkAuth, async (req, res) => {
 });
 
 // Event-specific dashboard
-app.get('/admin/dashboard/:eventId', checkAuth, async (req, res) => {
-    const { eventId } = req.params;
-    try {
-        const [
-            eventResult,
-            totalResult,
-            attendedResult,
-            usersResult,
-            fieldsResult,
-        ] = await Promise.all([
-            db.query(`SELECT name FROM events WHERE id = $1`, [eventId]),
-            db.query(`SELECT COUNT(*) as total FROM registrations WHERE event_id = $1`, [eventId]),
-            db.query(`SELECT COUNT(*) as attended FROM registrations WHERE event_id = $1 AND status = 'USED'`, [eventId]),
-            db.query(`SELECT id, name, email, status, created_at FROM registrations WHERE event_id = $1 ORDER BY created_at DESC`, [eventId]),
-            db.query(`SELECT * FROM form_fields WHERE event_id = $1 ORDER BY id`, [eventId]),
-        ]);
+app.get("/admin/dashboard/:eventId", checkAuth, async (req, res) => {
+  const { eventId } = req.params;
+  try {
+    const [
+      eventResult,
+      totalResult,
+      attendedResult,
+      usersResult,
+      fieldsResult,
+    ] = await Promise.all([
+      db.query(`SELECT name FROM events WHERE id = $1`, [eventId]),
+      db.query(
+        `SELECT COUNT(*) as total FROM registrations WHERE event_id = $1`,
+        [eventId]
+      ),
+      db.query(
+        `SELECT COUNT(*) as attended FROM registrations WHERE event_id = $1 AND status = 'USED'`,
+        [eventId]
+      ),
+      db.query(
+        `SELECT id, name, email, status, created_at FROM registrations WHERE event_id = $1 ORDER BY created_at DESC`,
+        [eventId]
+      ),
+      db.query(`SELECT * FROM form_fields WHERE event_id = $1 ORDER BY id`, [
+        eventId,
+      ]),
+    ]);
 
-        const event = eventResult.rows[0];
-        if (!event) return res.status(404).send("المناسبة غير موجودة.");
+    const event = eventResult.rows[0];
+    if (!event) return res.status(404).send("المناسبة غير موجودة.");
 
-        const totalRow = totalResult.rows[0];
-        const attendedRow = attendedResult.rows[0];
-        const users = usersResult.rows;
-        const fields = fieldsResult.rows;
+    const totalRow = totalResult.rows[0];
+    const attendedRow = attendedResult.rows[0];
+    const users = usersResult.rows;
+    const fields = fieldsResult.rows;
 
-        // --- الكود المكتمل ---
-        const userRows = users.map(user => `
+    // --- الكود المكتمل ---
+    const userRows = users
+      .map(
+        (user) => `
             <tr class="border-b">
                 <td class="py-3 px-4">${user.name}</td>
                 <td class="py-3 px-4">${user.email}</td>
                 <td class="py-3 px-4">
-                    <span class="px-2 py-1 text-xs font-semibold rounded-full ${user.status === 'USED' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}">
-                        ${user.status === 'USED' ? 'حضر' : 'لم يحضر'}
+                    <span class="px-2 py-1 text-xs font-semibold rounded-full ${
+                      user.status === "USED"
+                        ? "bg-green-100 text-green-800"
+                        : "bg-yellow-100 text-yellow-800"
+                    }">
+                        ${user.status === "USED" ? "حضر" : "لم يحضر"}
                     </span>
                 </td>
-                <td class="py-3 px-4">${new Date(user.created_at).toLocaleString('ar-SA')}</td>
+                <td class="py-3 px-4">${new Date(
+                  user.created_at
+                ).toLocaleString("ar-SA")}</td>
                 <td class="py-3 px-4">
-                    <a href="/admin/registration/${user.id}" class="text-blue-500 hover:underline">عرض التفاصيل</a>
+                    <a href="/admin/registration/${
+                      user.id
+                    }" class="text-blue-500 hover:underline">عرض التفاصيل</a>
                 </td>
             </tr>
-        `).join('');
+        `
+      )
+      .join("");
 
-        const fieldRows = fields.map(field => `
+    const fieldRows = fields
+      .map(
+        (field) => `
             <tr class="border-b">
                 <td class="py-3 px-4">${field.label}</td>
                 <td class="py-3 px-4 font-mono text-sm">${field.name}</td>
                 <td class="py-3 px-4">${field.type}</td>
-                <td class="py-3 px-4">${field.required ? 'نعم' : 'لا'}</td>
+                <td class="py-3 px-4">${field.required ? "نعم" : "لا"}</td>
                 <td class="py-3 px-4">
-                    <form action="/admin/delete-field/${eventId}/${field.id}" method="POST" onsubmit="return confirm('هل أنت متأكد؟');">
+                    <form action="/admin/delete-field/${eventId}/${
+          field.id
+        }" method="POST" onsubmit="return confirm('هل أنت متأكد؟');">
                         <button type="submit" class="bg-red-500 text-white px-3 py-1 text-sm rounded-md hover:bg-red-600">حذف</button>
                     </form>
                 </td>
             </tr>
-        `).join('');
-        // --- نهاية الكود المكتمل ---
+        `
+      )
+      .join("");
+    // --- نهاية الكود المكتمل ---
 
-        res.send(`
+    res.send(`
             <!DOCTYPE html>
             <html lang="ar" dir="rtl">
             <head>
@@ -413,13 +459,11 @@ app.get('/admin/dashboard/:eventId', checkAuth, async (req, res) => {
                 <script>function toggleOptionsInput(){var t=document.getElementById("fieldType").value,e=document.getElementById("optionsInput");"dropdown"===t?(e.style.display="block",e.required=!0,e.classList.remove("md:col-span-2")):(e.style.display="none",e.required=!1,e.classList.add("md:col-span-2"))}</script>
             </body></html>
         `);
-    } catch (err) {
-        console.error("Dashboard Error:", err);
-        res.status(500).send("Error loading dashboard.");
-    }
+  } catch (err) {
+    console.error("Dashboard Error:", err);
+    res.status(500).send("Error loading dashboard.");
+  }
 });
-
-
 
 // Show registration details
 app.get("/admin/registration/:registrationId", checkAuth, async (req, res) => {
@@ -431,9 +475,60 @@ app.get("/admin/registration/:registrationId", checkAuth, async (req, res) => {
     );
     const row = result.rows[0];
     if (!row) return res.status(404).send("Registration not found.");
-
-    // ... HTML generation for the details page ...
-    res.send(`... Full HTML for registration details page ...`);
+    // بناء الصفحة الكاملة
+    res.send(`
+            <!DOCTYPE html>
+            <html lang="ar" dir="rtl">
+            <head>
+                <title>تفاصيل التسجيل</title>
+                <script src="https://cdn.tailwindcss.com"></script>
+            </head>
+            <body class="bg-gray-100 flex items-center justify-center min-h-screen py-12">
+                <div class="w-full max-w-2xl bg-white p-8 rounded-xl shadow-lg">
+                    <h1 class="text-2xl font-bold text-center text-gray-800 mb-2">تفاصيل التسجيل</h1>
+                    <p class="text-center text-gray-500 mb-6">للمناسبة: ${
+                      row.event_name
+                    }</p>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+                        <div class="bg-gray-50 p-4 rounded-lg border">
+                            <h2 class="font-bold text-lg mb-4 border-b pb-2">البيانات الأساسية</h2>
+                            <dl class="space-y-2">
+                                <div><dt class="font-semibold text-gray-800">الاسم الكامل</dt><dd class="text-gray-600">${
+                                  row.name
+                                }</dd></div>
+                                <div><dt class="font-semibold text-gray-800">البريد الإلكتروني</dt><dd class="text-gray-600">${
+                                  row.email
+                                }</dd></div>
+                                <div><dt class="font-semibold text-gray-800">حالة التذكرة</dt><dd class="font-bold ${
+                                  row.status === "USED"
+                                    ? "text-green-600"
+                                    : "text-yellow-600"
+                                }">${
+      row.status === "USED" ? "تم استخدامها" : "لم تُستخدم"
+    }</dd></div>
+                            </dl>
+                        </div>
+                        <div class="bg-gray-50 p-4 rounded-lg border">
+                            <h2 class="font-bold text-lg mb-4 border-b pb-2">البيانات الإضافية</h2>
+                            <dl class="space-y-2">
+                                ${
+                                  dynamicDataHtml.length > 0
+                                    ? dynamicDataHtml
+                                    : '<p class="text-gray-500">لا توجد بيانات إضافية.</p>'
+                                }
+                            </dl>
+                        </div>
+                    </div>
+                    <div class="text-center mt-8">
+                        <a href="/admin/dashboard/${
+                          row.event_id
+                        }" class="text-blue-500 hover:underline">&larr; العودة إلى لوحة التحكم</a>
+                    </div>
+                </div>
+            </body>
+            </html>
+        `);
   } catch (err) {
     console.error("Registration Details Error:", err);
     res.status(500).send("Error fetching registration details.");
@@ -458,7 +553,8 @@ app.post("/admin/add-field/:eventId", checkAuth, async (req, res) => {
   }
 });
 
-app.post("/admin/delete-field/:eventId/:fieldId",
+app.post(
+  "/admin/delete-field/:eventId/:fieldId",
   checkAuth,
   async (req, res) => {
     const { eventId, fieldId } = req.params;
