@@ -6,6 +6,7 @@ const { v4: uuidv4 } = require("uuid"); // لاستيراد وظيفة إنشا�
 const qr = require("qrcode"); // لاستيراد مكتبة QR Code
 const nodemailer = require("nodemailer");
 const session = require("express-session");
+const fs = require('fs');
 
 // 2. إنشاء تطبيق Express
 const app = express();
@@ -35,8 +36,41 @@ const checkAuth = (req, res, next) => {
 // res = الرد الذي سنرسله للمتصفح
 // نحتاج استدعاء مكتبة path للمساعدة في تحديد مسار الملف
 
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "index.html"));
+app.get('/', (req, res) => {
+  // 1. Get active fields from the database
+  const sql = `SELECT * FROM form_fields WHERE is_active = 1 ORDER BY id`;
+
+  db.all(sql, [], (err, fields) => {
+    if (err) {
+      console.error(err.message);
+      return res.status(500).send('Error preparing the form.');
+    }
+
+    // 2. Build the HTML for the new fields
+    let dynamicFieldsHtml = fields.map(field => {
+      const requiredAttr = field.required ? 'required' : '';
+      return `
+        <div class="form-group">
+          <label for="${field.name}">${field.label}</label>
+          <input type="${field.type}" id="${field.name}" name="${field.name}" ${requiredAttr}>
+        </div>
+      `;
+    }).join('');
+
+    // 3. Read the original index.html file
+    fs.readFile(path.join(__dirname, 'index.html'), 'utf8', (err, htmlData) => {
+      if (err) {
+        console.error(err);
+        return res.status(500).send('Error loading the registration page.');
+      }
+
+      // 4. Replace the placeholder with the new fields
+      const finalHtml = htmlData.replace('', dynamicFieldsHtml);
+
+      // 5. Send the final, modified page to the user
+      res.send(finalHtml);
+    });
+  });
 });
 
 // كلمة المرور الخاصة بالموظفين (يمكن تغييرها)
