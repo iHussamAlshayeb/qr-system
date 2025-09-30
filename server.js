@@ -142,16 +142,21 @@ app.get('/admin', checkAuth, (req, res) => {
       </tr>
     `).join('');
 
-    // بناء جدول حقول الفورم
     let fieldRows = fields.map(field => `
-      <tr>
-        <td>${field.label}</td>
-        <td>${field.name}</td>
-        <td>${field.type}</td>
-        <td>${field.required ? 'نعم' : 'لا'}</td>
-        <td><button disabled>تعديل</button> <button disabled>حذف</button></td>
-      </tr>
-    `).join('');
+  <tr>
+    <td>${field.label}</td>
+    <td>${field.name}</td>
+    <td>${field.type}</td>
+    <td>${field.required ? 'نعم' : 'لا'}</td>
+    <td style="display: flex; gap: 5px;">
+      <button disabled>تعديل</button>
+      <form action="/admin/delete-field" method="POST" onsubmit="return confirm('هل أنت متأكد من حذف هذا الحقل؟');">
+        <input type="hidden" name="field_id" value="${field.id}">
+        <button type="submit" style="background-color: #dc3545;">حذف</button>
+      </form>
+    </td>
+  </tr>
+`).join('');
 
     // --- بناء الصفحة الكاملة مع القسمين ---
     res.send(`
@@ -229,6 +234,21 @@ app.post("/admin/add-field", checkAuth, (req, res) => {
         .send("خطأ في إضافة الحقل، قد يكون الاسم البرمجي مكررًا.");
     }
     res.redirect("/admin"); // أعد التوجيه إلى لوحة التحكم لرؤية التغييرات
+  });
+});
+
+// مسار لمعالجة حذف حقل
+app.post('/admin/delete-field', checkAuth, (req, res) => {
+  const { field_id } = req.body;
+  const sql = `DELETE FROM form_fields WHERE id = ?`;
+
+  db.run(sql, [field_id], function(err) {
+    if (err) {
+      console.error(err.message);
+      return res.status(500).send('حدث خطأ أثناء حذف الحقل.');
+    }
+    console.log(`تم حذف الحقل بنجاح. ID: ${field_id}`);
+    res.redirect('/admin'); // أعد التوجيه للوحة التحكم لرؤية التغييرات
   });
 });
 
