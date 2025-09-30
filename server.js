@@ -309,7 +309,7 @@ app.post("/login", async (req, res) => {
 
             // توجيه المستخدم بناءً على دوره
             if (user.role === 'admin') {
-                res.redirect("/admin/events");
+                res.redirect("/admin/home");
             } else {
                 res.redirect("/scanner");
             }
@@ -319,6 +319,41 @@ app.post("/login", async (req, res) => {
     } catch (err) {
         res.status(500).send("حدث خطأ في الخادم.");
     }
+});
+
+// New admin homepage/main menu
+app.get('/admin/home', checkAdmin, (req, res) => {
+    res.send(`
+        <!DOCTYPE html>
+        <html lang="ar" dir="rtl">
+        <head>
+            <meta charset="UTF-8">
+            <title>لوحة التحكم الرئيسية</title>
+            <script src="https://cdn.tailwindcss.com"></script>
+        </head>
+        <body class="bg-gray-100">
+            <div class="container mx-auto max-w-4xl mt-16 p-8">
+                <h1 class="text-4xl font-bold text-center text-gray-800 mb-4">لوحة التحكم الرئيسية</h1>
+                <p class="text-center text-gray-500 mb-12">أهلاً بك، ${req.session.username}. اختر القسم الذي تريد إدارته.</p>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <a href="/admin/events" class="block bg-white p-8 rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300">
+                        <h2 class="text-2xl font-bold text-blue-600 mb-2">إدارة المناسبات</h2>
+                        <p class="text-gray-600">إنشاء مناسبات جديدة، عرض روابط التسجيل، والوصول إلى لوحات التحكم الخاصة بكل مناسبة.</p>
+                    </a>
+                    
+                    <a href="/admin/users" class="block bg-white p-8 rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300">
+                        <h2 class="text-2xl font-bold text-green-600 mb-2">إدارة المستخدمين</h2>
+                        <p class="text-gray-600">إضافة مستخدمين جدد (مدراء أو ماسحين ضوئيين) وتعيين صلاحياتهم.</p>
+                    </a>
+                </div>
+                 <div class="text-center mt-12">
+                    <a href="/logout" class="text-red-500 hover:underline">تسجيل الخروج</a>
+                </div>
+            </div>
+        </body>
+        </html>
+    `);
 });
 
 // Main page for event management
