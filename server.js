@@ -150,9 +150,22 @@ app.post("/register/:eventId", (req, res) => {
       qr.toDataURL(verificationUrl, (qrErr, qrCodeUrl) => {
         if (qrErr) return res.status(500).send("فشل إنشاء QR Code.");
         // كود إرسال الإيميل
-        res.send(
-          `<h1>تم التسجيل بنجاح!</h1><img src="${qrCodeUrl}"><br><a href="${qrCodeUrl}" download="ticket.png">تحميل الرمز</a>`
-        );
+        res.send(`
+    <body class="bg-gray-100 flex items-center justify-center min-h-screen">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <div class="text-center bg-white p-10 rounded-xl shadow-lg">
+        <h1 class="text-3xl font-bold text-green-600 mb-4">تم التسجيل بنجاح!</h1>
+        <p class="text-gray-600 mb-6">شكرًا لك، ${name}. تم إرسال تذكرتك إلى بريدك الإلكتروني.</p>
+        <div class="p-4 border rounded-lg inline-block">
+            <img src="${qrCodeUrl}" alt="QR Code">
+        </div>
+        <br><br>
+        <a href="${qrCodeUrl}" download="ticket-qrcode.png" class="mt-4 inline-block bg-green-500 text-white py-3 px-6 rounded-lg font-semibold hover:bg-green-600 transition duration-300">
+            تحميل الـ QR Code
+        </a>
+    </div>
+    </body>
+`);
       });
     }
   );
