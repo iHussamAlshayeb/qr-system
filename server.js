@@ -615,31 +615,118 @@ app.get("/admin/dashboard/:eventId", checkAdmin, async (req, res) => {
 });
 
 // Show registration details
-app.get("/admin/registration/:registrationId", checkAdmin, async (req, res) => {
-  const { registrationId } = req.params;
-  try {
-    const result = await db.query(
-      `SELECT r.*, e.name as event_name 
+// app.get("/admin/registration/:registrationId", checkAdmin, async (req, res) => {
+//   const { registrationId } = req.params;
+//   try {
+//     const result = await db.query(
+//       `SELECT r.*, e.name as event_name 
+//              FROM registrations r
+//              JOIN events e ON r.event_id = e.id
+//              WHERE r.id = $1`,
+//       [registrationId]
+//     );
+
+//     const row = result.rows[0];
+//     if (!row) return res.status(404).send("التسجيل غير موجود.");
+
+//     // --- THIS IS THE MISSING PART ---
+//     const dynamicData = row.dynamic_data || {};
+//     let dynamicDataHtml = Object.entries(dynamicData)
+//       .map(([key, value]) => {
+//         const formattedKey = key.replace(/_/g, " ");
+//         return `<div class="mb-2"><dt class="font-semibold text-gray-800 capitalize">${formattedKey}</dt><dd class="text-gray-600">${value}</dd></div>`;
+//       })
+//       .join("");
+//     // --- END OF MISSING PART ---
+
+//     res.send(`
+//             <!DOCTYPE html>
+//             <html lang="ar" dir="rtl">
+//             <head>
+//                 <title>تفاصيل التسجيل</title>
+//                 <script src="https://cdn.tailwindcss.com"></script>
+//             </head>
+//             <body class="bg-gray-100 flex items-center justify-center min-h-screen py-12">
+//                 <div class="w-full max-w-2xl bg-white p-8 rounded-xl shadow-lg">
+//                     <h1 class="text-2xl font-bold text-center text-gray-800 mb-2">تفاصيل التسجيل</h1>
+//                     <p class="text-center text-gray-500 mb-6">للمناسبة: ${
+//                       row.event_name
+//                     }</p>
+                    
+//                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+//                         <div class="bg-gray-50 p-4 rounded-lg border">
+//                             <h2 class="font-bold text-lg mb-4 border-b pb-2">البيانات الأساسية</h2>
+//                             <dl class="space-y-2">
+//                                 <div><dt class="font-semibold text-gray-800">الاسم الكامل</dt><dd class="text-gray-600">${
+//                                   row.name
+//                                 }</dd></div>
+//                                 <div><dt class="font-semibold text-gray-800">البريد الإلكتروني</dt><dd class="text-gray-600">${
+//                                   row.email
+//                                 }</dd></div>
+//                                 <div><dt class="font-semibold text-gray-800">حالة التذكرة</dt><dd class="font-bold ${
+//                                   row.status === "USED"
+//                                     ? "text-green-600"
+//                                     : "text-yellow-600"
+//                                 }">${
+//       row.status === "USED" ? "تم استخدامها" : "لم تُستخدم"
+//     }</dd></div>
+//                             </dl>
+//                         </div>
+//                         <div class="bg-gray-50 p-4 rounded-lg border">
+//                             <h2 class="font-bold text-lg mb-4 border-b pb-2">البيانات الإضافية</h2>
+//                             <dl class="space-y-2">
+//                                 ${
+//                                   dynamicDataHtml.length > 0
+//                                     ? dynamicDataHtml
+//                                     : '<p class="text-gray-500">لا توجد بيانات إضافية.</p>'
+//                                 }
+//                             </dl>
+//                         </div>
+//                     </div>
+//                     <div class="text-center mt-8">
+//                         <a href="/admin/dashboard/${
+//                           row.event_id
+//                         }" class="text-blue-500 hover:underline">&larr; العودة إلى لوحة التحكم</a>
+//                     </div>
+//                 </div>
+//             </body>
+//             </html>
+//         `);
+//   } catch (err) {
+//     console.error("Registration Details Error:", err);
+//     res.status(500).send("Error fetching registration details.");
+//   }
+// });
+
+app.get('/admin/registration/:registrationId', checkAdmin, async (req, res) => {
+    const { registrationId } = req.params;
+    try {
+        const result = await db.query(
+            `SELECT r.*, e.name as event_name 
              FROM registrations r
              JOIN events e ON r.event_id = e.id
              WHERE r.id = $1`,
-      [registrationId]
-    );
+            [registrationId]
+        );
 
-    const row = result.rows[0];
-    if (!row) return res.status(404).send("التسجيل غير موجود.");
+        const row = result.rows[0];
+        if (!row) return res.status(404).send("التسجيل غير موجود.");
 
-    // --- THIS IS THE MISSING PART ---
-    const dynamicData = row.dynamic_data || {};
-    let dynamicDataHtml = Object.entries(dynamicData)
-      .map(([key, value]) => {
-        const formattedKey = key.replace(/_/g, " ");
-        return `<div class="mb-2"><dt class="font-semibold text-gray-800 capitalize">${formattedKey}</dt><dd class="text-gray-600">${value}</dd></div>`;
-      })
-      .join("");
-    // --- END OF MISSING PART ---
+        // --- هذا هو الجزء الجديد ---
+        // 1. إعادة بناء رابط التحقق الخاص بهذه التذكرة
+        const verificationUrl = `${process.env.RENDER_EXTERNAL_URL || `http://localhost:${port}`}/verify/${row.ticket_id}`;
+        
+        // 2. توليد صورة الـ QR Code
+        const qrCodeUrl = await qr.toDataURL(verificationUrl);
+        // --- نهاية الجزء الجديد ---
 
-    res.send(`
+        const dynamicData = row.dynamic_data || {};
+        let dynamicDataHtml = Object.entries(dynamicData).map(([key, value]) => {
+            const formattedKey = key.replace(/_/g, ' '); 
+            return `<div class="mb-2"><dt class="font-semibold text-gray-800 capitalize">${formattedKey}</dt><dd class="text-gray-600">${value}</dd></div>`;
+        }).join('');
+
+        res.send(`
             <!DOCTYPE html>
             <html lang="ar" dir="rtl">
             <head>
@@ -647,55 +734,47 @@ app.get("/admin/registration/:registrationId", checkAdmin, async (req, res) => {
                 <script src="https://cdn.tailwindcss.com"></script>
             </head>
             <body class="bg-gray-100 flex items-center justify-center min-h-screen py-12">
-                <div class="w-full max-w-2xl bg-white p-8 rounded-xl shadow-lg">
+                <div class="w-full max-w-4xl bg-white p-8 rounded-xl shadow-lg">
                     <h1 class="text-2xl font-bold text-center text-gray-800 mb-2">تفاصيل التسجيل</h1>
-                    <p class="text-center text-gray-500 mb-6">للمناسبة: ${
-                      row.event_name
-                    }</p>
+                    <p class="text-center text-gray-500 mb-6">للمناسبة: ${row.event_name}</p>
                     
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
-                        <div class="bg-gray-50 p-4 rounded-lg border">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div class="md:col-span-1 bg-gray-50 p-4 rounded-lg border">
                             <h2 class="font-bold text-lg mb-4 border-b pb-2">البيانات الأساسية</h2>
-                            <dl class="space-y-2">
-                                <div><dt class="font-semibold text-gray-800">الاسم الكامل</dt><dd class="text-gray-600">${
-                                  row.name
-                                }</dd></div>
-                                <div><dt class="font-semibold text-gray-800">البريد الإلكتروني</dt><dd class="text-gray-600">${
-                                  row.email
-                                }</dd></div>
-                                <div><dt class="font-semibold text-gray-800">حالة التذكرة</dt><dd class="font-bold ${
-                                  row.status === "USED"
-                                    ? "text-green-600"
-                                    : "text-yellow-600"
-                                }">${
-      row.status === "USED" ? "تم استخدامها" : "لم تُستخدم"
-    }</dd></div>
+                            <dl class="space-y-2 text-sm">
+                                <div><dt class="font-semibold text-gray-800">الاسم الكامل</dt><dd class="text-gray-600">${row.name}</dd></div>
+                                <div><dt class="font-semibold text-gray-800">البريد الإلكتروني</dt><dd class="text-gray-600">${row.email}</dd></div>
+                                <div><dt class="font-semibold text-gray-800">حالة التذكرة</dt><dd class="font-bold ${row.status === 'USED' ? 'text-green-600' : 'text-yellow-600'}">${row.status === 'USED' ? 'تم استخدامها' : 'لم تُستخدم'}</dd></div>
                             </dl>
                         </div>
-                        <div class="bg-gray-50 p-4 rounded-lg border">
+
+                        <div class="md:col-span-1 bg-gray-50 p-4 rounded-lg border">
                             <h2 class="font-bold text-lg mb-4 border-b pb-2">البيانات الإضافية</h2>
-                            <dl class="space-y-2">
-                                ${
-                                  dynamicDataHtml.length > 0
-                                    ? dynamicDataHtml
-                                    : '<p class="text-gray-500">لا توجد بيانات إضافية.</p>'
-                                }
+                            <dl class="space-y-2 text-sm">
+                                ${dynamicDataHtml.length > 0 ? dynamicDataHtml : '<p class="text-gray-500">لا توجد بيانات إضافية.</p>'}
                             </dl>
+                        </div>
+                        
+                        <div class="md:col-span-1 flex flex-col items-center justify-center bg-gray-50 p-4 rounded-lg border">
+                            <h2 class="font-bold text-lg mb-4">رمز الدخول (QR Code)</h2>
+                            <div class="p-2 border bg-white rounded-lg">
+                                <img src="${qrCodeUrl}" alt="QR Code" class="w-48 h-48">
+                            </div>
+                            <a href="${qrCodeUrl}" download="qrcode-${row.name.replace(/\s/g, '_')}.png" class="mt-4 text-sm text-blue-500 hover:underline">تحميل الرمز</a>
                         </div>
                     </div>
+
                     <div class="text-center mt-8">
-                        <a href="/admin/dashboard/${
-                          row.event_id
-                        }" class="text-blue-500 hover:underline">&larr; العودة إلى لوحة التحكم</a>
+                        <a href="/admin/dashboard/${row.event_id}" class="text-gray-500 hover:underline">&larr; العودة إلى لوحة التحكم</a>
                     </div>
                 </div>
             </body>
             </html>
         `);
-  } catch (err) {
-    console.error("Registration Details Error:", err);
-    res.status(500).send("Error fetching registration details.");
-  }
+    } catch (err) {
+        console.error("Registration Details Error:", err);
+        res.status(500).send("Error fetching registration details.");
+    }
 });
 
 // Add/Delete form fields for an event
