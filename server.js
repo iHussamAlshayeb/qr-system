@@ -9,6 +9,12 @@ const fs = require("fs");
 const bcrypt = require("bcrypt");
 // const sgMail = require('@sendgrid/mail');
 
+const footerHtml = `
+  <footer class="text-center text-sm text-gray-500 py-6">
+    برمجة وتطوير: <a href="https://ihussam.dev" target="_blank" class="font-semibold text-blue-600 hover:underline">ihussam.dev</a>
+  </footer>
+`;
+
 // 2. App Setup
 const app = express();
 app.use(
@@ -88,7 +94,9 @@ app.get("/", async (req, res) => {
                         : '<p class="text-center text-gray-500 col-span-3">لا توجد مناسبات متاحة حاليًا.</p>'
                     }
                 </div>
-            </div></body></html>
+            </div>
+            ${footerHtml}
+            </body></html>
         `);
   } catch (err) {
     console.error("Homepage Error:", err);
@@ -282,7 +290,9 @@ app.get("/verify/:ticketId", checkScanner, async (req, res) => {
                     <div class="py-2"><p class="text-sm font-semibold text-gray-700">البريد الإلكتروني</p><p class="text-gray-900">${row.email}</p></div>
                     ${dynamicDataHtml}
                 </div>
-            </div></body></html>
+            </div>
+            ${footerHtml}
+            </body></html>
         `);
   } catch (err) {
     console.error("Verification Error:", err);
@@ -354,6 +364,7 @@ app.get("/admin/home", checkAdmin, (req, res) => {
                     <a href="/logout" class="text-red-500 hover:underline">تسجيل الخروج</a>
                 </div>
             </div>
+             ${footerHtml}
         </body>
         </html>
     `);
@@ -606,6 +617,7 @@ app.get("/admin/dashboard/:eventId", checkAdmin, async (req, res) => {
                     </div>
                 </div>
                 <script>function toggleOptionsInput(){var t=document.getElementById("fieldType").value,e=document.getElementById("optionsInput");"dropdown"===t?(e.style.display="block",e.required=!0,e.classList.remove("md:col-span-2")):(e.style.display="none",e.required=!1,e.classList.add("md:col-span-2"))}</script>
+                 ${footerHtml}
             </body></html>
         `);
   } catch (err) {
@@ -769,6 +781,7 @@ app.get('/admin/registration/:registrationId', checkAdmin, async (req, res) => {
                         <a href="/admin/dashboard/${row.event_id}" class="text-gray-500 hover:underline">&larr; العودة إلى لوحة التحكم</a>
                     </div>
                 </div>
+                 ${footerHtml}
             </body>
             </html>
         `);
@@ -811,7 +824,9 @@ app.get('/admin/registration/edit/:registrationId', checkAdmin, async (req, res)
                         <a href="/admin/registration/${registrationId}" class="w-full text-center bg-gray-200 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-300">إلغاء</a>
                     </div>
                 </form>
-            </div></body></html>
+            </div>
+             ${footerHtml}
+            </body></html>
         `);
     } catch (err) {
         res.status(500).send("خطأ في تحميل صفحة التعديل.");
@@ -950,6 +965,7 @@ app.get("/admin/users", checkAdmin, async (req, res) => {
                         </form>
                     </div>
                 </div>
+                 ${footerHtml}
             </body>
             </html>
         `);
@@ -1005,7 +1021,9 @@ app.get("/admin/users/edit/:userId", checkAdmin, async (req, res) => {
                 <button type="submit" class="w-full bg-yellow-500 text-white py-3 rounded-lg font-semibold hover:bg-yellow-600">تحديث كلمة المرور</button>
             </form>
             <div class="text-center mt-6"><a href="/admin/users" class="text-gray-500 hover:underline">&larr; إلغاء والعودة</a></div>
-        </div></body></html>
+        </div>
+         ${footerHtml}
+        </body></html>
     `);
 });
 
@@ -1056,6 +1074,7 @@ app.get("/scanner", checkScanner, (req, res) => {
                     <a href="/logout" class="w-full bg-red-500 text-white py-3 rounded-lg font-semibold hover:bg-red-600 transition duration-300">تسجيل الخروج</a>
                 </div>
             </div>
+             ${footerHtml}
         </body>
         </html>
     `);
