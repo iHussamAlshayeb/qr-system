@@ -427,16 +427,27 @@ app.get("/admin/events", checkAdmin, async (req, res) => {
 
 // Add a new event
 app.post('/admin/events/add', checkAdmin, async (req, res) => {
-    // ... your existing code to add the event
-    const eventId = result.rows[0].id;
-    
-    // Default fields now include National ID
-    const defaultFields = [
-        { label: 'الاسم الكامل', name: 'name', type: 'text', required: 1 },
-        { label: 'البريد الإلكتروني', name: 'email', type: 'email', required: 1 },
-        { label: 'رقم الهوية الوطنية', name: 'national_id', type: 'number', required: 1 }
-    ];
-    // ... your existing code to insert these fields
+    const { name, description, location, event_date } = req.body;
+    try {
+        // This line correctly defines the 'result' variable
+        const result = await db.query(
+            `INSERT INTO events (name, description, location, event_date) VALUES ($1, $2, $3, $4) RETURNING id`, 
+            [name, description, location, event_date]
+        );
+        
+        // Now this line will work because 'result' is defined
+        const eventId = result.rows[0].id;
+        
+        // Add default fields for the new event
+        await db.query(`INSERT INTO form_fields (event_id, label, name, type, required) VALUES ($1, 'الاسم الكامل', 'name', 'text', TRUE)`, [eventId]);
+        await db.query(`INSERT INTO form_fields (event_id, label, name, type, required) VALUES ($1, 'البريد الإلكتروني', 'email', 'email', TRUE)`, [eventId]);
+        await db.query(`INSERT INTO form_fields (event_id, label, name, type, required) VALUES ($1, 'رقم الهوية الوطنية', 'national_id', 'number', TRUE)`, [eventId]);
+        
+        res.redirect('/admin/events');
+    } catch (err) {
+        console.error("Add Event Error:", err);
+        res.status(500).send("خطأ في إنشاء المناسبة.");
+    }
 });
 
 // 2. Add a route to display the lookup page
