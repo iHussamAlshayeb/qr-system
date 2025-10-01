@@ -27,6 +27,7 @@ app.use(
   })
 );
 app.use(express.urlencoded({ extended: true }));
+app.use(express.json()); // <-- Add this required line
 const port = process.env.PORT || 3000;
 // sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
