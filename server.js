@@ -97,10 +97,12 @@ app.get("/", async (req, res) => {
                 <script src="https://cdn.tailwindcss.com"></script>
             </head>
             <body class="bg-gray-100">
+            
                 <div class="container mx-auto max-w-5xl py-12 px-4">
                     <h1 class="text-4xl font-bold text-center text-gray-800 mb-10">المناسبات المتاحة</h1>
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                         ${eventsGridHtml.length > 0 ? eventsGridHtml : '<p class="text-center text-gray-500 col-span-3">لا توجد مناسبات متاحة حاليًا.</p>'}
+                        <a href="/lookup" class="text-sm text-gray-500">Find your ticket?</a>
                     </div>
                 </div>
                 ${footerHtml}
@@ -158,12 +160,12 @@ app.get("/register/:eventId", async (req, res) => {
 // Handle form submission
 app.post("/register/:eventId", async (req, res) => {
     const { eventId } = req.params;
-    const { name, email, ...dynamicData } = req.body;
+    const { name, email, national_id, ...dynamicData } = req.body; // Extract national_id
     const ticketId = uuidv4();
     const dynamicDataJson = JSON.stringify(dynamicData);
 
     try {
-        // Step 1: Check if the email is already registered for this event
+        // Check if the email is already registered for this specific event
         const checkResult = await db.query(
             `SELECT id FROM registrations WHERE event_id = $1 AND email = $2`,
             [eventId, email]
@@ -173,19 +175,17 @@ app.post("/register/:eventId", async (req, res) => {
             return res.status(400).send(`... HTML for already registered error ...`);
         }
 
-        // Step 2: Register the user
+        // Insert the new registration, now including the national_id
         await db.query(
-            `INSERT INTO registrations (event_id, name, email, dynamic_data, ticket_id) VALUES ($1, $2, $3, $4, $5)`,
-            [eventId, name, email, dynamicDataJson, ticketId]
+            `INSERT INTO registrations (event_id, name, email, national_id, dynamic_data, ticket_id) VALUES ($1, $2, $3, $4, $5, $6)`,
+            [eventId, name, email, national_id, dynamicDataJson, ticketId]
         );
         
-        // --- THIS IS THE NEW PART ---
-        // Step 3: Fetch the event details to display on the success page
+        // Fetch event details to display on the success page
         const eventResult = await db.query('SELECT name, location, event_date FROM events WHERE id = $1', [eventId]);
         const event = eventResult.rows[0];
-        // --- END OF NEW PART ---
-
-        // Step 4: Create QR Code and send the response
+        
+        // Create QR Code and send the response
         const verificationUrl = `${process.env.RENDER_EXTERNAL_URL || `http://localhost:${port}`}/verify/${ticketId}`;
         const qrCodeUrl = await qr.toDataURL(verificationUrl);
 
@@ -210,9 +210,9 @@ app.post("/register/:eventId", async (req, res) => {
         `);
 
     } catch (err) {
-        console.error("--- DATABASE INSERTION ERROR ---");
+        console.error("--- REGISTRATION SUBMISSION ERROR ---");
         console.error(err);
-        res.status(500).send("An unexpected error occurred during registration. Please check the server logs.");
+        res.status(500).send("An unexpected error occurred during registration.");
     }
 });
 
@@ -427,22 +427,59 @@ app.get("/admin/events", checkAdmin, async (req, res) => {
 
 // Add a new event
 app.post('/admin/events/add', checkAdmin, async (req, res) => {
-    const { name, description, location, event_date } = req.body;
+    // ... your existing code to add the event
+    const eventId = result.rows[0].id;
+    
+    // Default fields now include National ID
+    const defaultFields = [
+        { label: 'الاسم الكامل', name: 'name', type: 'text', required: 1 },
+        { label: 'البريد الإلكتروني', name: 'email', type: 'email', required: 1 },
+        { label: 'رقم الهوية الوطنية', name: 'national_id', type: 'number', required: 1 }
+    ];
+    // ... your existing code to insert these fields
+});
+
+// 2. Add a route to display the lookup page
+app.get('/lookup', (req, res) => {
+    res.sendFile(path.join(__dirname, 'lookup.html'));
+});
+
+// 3. Add a route to handle the lookup and display results
+app.post('/lookup', async (req, res) => {
+    const { national_id } = req.body;
     try {
-        const result = await db.query(
-            `INSERT INTO events (name, description, location, event_date) VALUES ($1, $2, $3, $4) RETURNING id`, 
-            [name, description, location, event_date]
-        );
-        const eventId = result.rows[0].id;
-        // إضافة الحقول الافتراضية
-        await db.query(`INSERT INTO form_fields (event_id, label, name, type) VALUES ($1, 'الاسم الكامل', 'name', 'text')`, [eventId]);
-        await db.query(`INSERT INTO form_fields (event_id, label, name, type) VALUES ($1, 'البريد الإلكتروني', 'email', 'email')`, [eventId]);
-        res.redirect('/admin/events');
+        const sql = `
+            SELECT r.name, r.ticket_id, e.name as event_name, e.event_date 
+            FROM registrations r 
+            JOIN events e ON r.event_id = e.id 
+            WHERE r.national_id = $1 
+            ORDER BY e.event_date DESC
+        `;
+        const result = await db.query(sql, [national_id]);
+
+        const ticketListHtml = result.rows.map(row => {
+            const qrCodeUrl = `${process.env.RENDER_EXTERNAL_URL || `http://localhost:${port}`}/verify/${row.ticket_id}`;
+            return `
+                <div class="border rounded-lg p-4">
+                    <h3 class="font-bold">${row.event_name}</h3>
+                    <p>Ticket for: ${row.name}</p>
+                    <a href="${qrCodeUrl}" target="_blank" class="text-blue-500">View QR Code</a>
+                </div>
+            `;
+        }).join('');
+
+        res.send(`
+            <div class="space-y-4">
+                <h2 class="text-xl">Tickets found for ID: ${national_id}</h2>
+                ${ticketListHtml.length > 0 ? ticketListHtml : '<p>No tickets found for this ID.</p>'}
+            </div>
+        `);
     } catch (err) {
-        console.error("Add Event Error:", err);
-        res.status(500).send("خطأ في إنشاء المناسبة.");
+        console.error("Lookup Error:", err);
+        res.status(500).send("An error occurred.");
     }
 });
+
 
 // مسار لتغيير حالة المناسبة (نشط/غير نشط)
 app.post("/admin/events/toggle/:eventId", checkAdmin, async (req, res) => {

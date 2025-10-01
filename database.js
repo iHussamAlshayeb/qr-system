@@ -30,6 +30,7 @@ const setupDatabase = async () => {
         event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
         name TEXT NOT NULL,
         email TEXT NOT NULL,
+        national_id TEXT,
         dynamic_data JSONB,
         ticket_id TEXT NOT NULL UNIQUE,
         status TEXT NOT NULL DEFAULT 'UNUSED',
