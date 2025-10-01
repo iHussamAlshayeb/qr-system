@@ -162,67 +162,63 @@ app.get("/register/:eventId", async (req, res) => {
 
 // Handle form submission
 app.post("/register/:eventId", async (req, res) => {
-  const { eventId } = req.params;
-  const { name, email, ...dynamicData } = req.body;
-  const ticketId = uuidv4();
-  const dynamicDataJson = JSON.stringify(dynamicData);
+    const { eventId } = req.params;
+    const { name, email, ...dynamicData } = req.body;
+    const ticketId = uuidv4();
+    const dynamicDataJson = JSON.stringify(dynamicData);
 
-  try {
-    // --- الخطوة 1: التحقق أولاً ---
-    // سنتحقق إذا كان هذا الإيميل مسجل مسبقًا في هذه المناسبة تحديدًا
-    const checkResult = await db.query(
-      `SELECT id FROM registrations WHERE event_id = $1 AND email = $2`,
-      [eventId, email]
-    );
+    try {
+        // Step 1: Check if the email is already registered for this event
+        const checkResult = await db.query(
+            `SELECT id FROM registrations WHERE event_id = $1 AND email = $2`,
+            [eventId, email]
+        );
 
-    // إذا وجدنا أي نتيجة، فهذا يعني أنه مسجل بالفعل
-    if (checkResult.rows.length > 0) {
-      return res.status(400).send(`
-                <body class="bg-gray-100 flex items-center justify-center min-h-screen">
-                <script src="https://cdn.tailwindcss.com"></script>
-                <div class="text-center bg-white p-10 rounded-xl shadow-lg">
-                    <h1 class="text-3xl font-bold text-yellow-700 mb-4">تنبيه</h1>
-                    <p class="text-gray-600 mb-6">هذا البريد الإلكتروني مسجل بالفعل في هذه المناسبة.</p>
-                    <a href="/register/${eventId}" class="text-blue-500 hover:underline">العودة إلى صفحة التسجيل</a>
-                </div>
-                </body>
-            `);
-    }
+        if (checkResult.rows.length > 0) {
+            return res.status(400).send(`... HTML for already registered error ...`);
+        }
 
-    // --- الخطوة 2: التسجيل ---
-    // إذا لم يكن مسجلاً، نقوم بإضافته
-    await db.query(
-      `INSERT INTO registrations (event_id, name, email, dynamic_data, ticket_id) VALUES ($1, $2, $3, $4, $5)`,
-      [eventId, name, email, dynamicDataJson, ticketId]
-    );
+        // Step 2: Register the user
+        await db.query(
+            `INSERT INTO registrations (event_id, name, email, dynamic_data, ticket_id) VALUES ($1, $2, $3, $4, $5)`,
+            [eventId, name, email, dynamicDataJson, ticketId]
+        );
+        
+        // --- THIS IS THE NEW PART ---
+        // Step 3: Fetch the event details to display on the success page
+        const eventResult = await db.query('SELECT name, location, event_date FROM events WHERE id = $1', [eventId]);
+        const event = eventResult.rows[0];
+        // --- END OF NEW PART ---
 
-    // --- الخطوة 3: إنشاء QR Code وإرسال الرد ---
-    const verificationUrl = `${
-      process.env.RENDER_EXTERNAL_URL || `http://localhost:${port}`
-    }/verify/${ticketId}`;
-    const qrCodeUrl = await qr.toDataURL(verificationUrl);
+        // Step 4: Create QR Code and send the response
+        const verificationUrl = `${process.env.RENDER_EXTERNAL_URL || `http://localhost:${port}`}/verify/${ticketId}`;
+        const qrCodeUrl = await qr.toDataURL(verificationUrl);
 
-    // (يمكنك وضع كود إرسال الإيميل هنا)
+        // (You can place your email sending code here)
 
-    res.status(200).send(`
+        res.status(200).send(`
             <body class="bg-gray-100 flex items-center justify-center min-h-screen">
             <script src="https://cdn.tailwindcss.com"></script>
-            <div class="text-center bg-white p-10 rounded-xl shadow-lg">
+            <div class="text-center bg-white p-10 rounded-xl shadow-lg max-w-lg w-full">
                 <h1 class="text-3xl font-bold text-green-600 mb-4">تم التسجيل بنجاح!</h1>
-                <p class="text-gray-600 mb-6">شكرًا لك، ${name}. تم إرسال تذكرتك إلى بريدك الإلكتروني.</p>
+                <p class="text-gray-600 mb-6">شكرًا لك، ${name}. نتطلع لرؤيتك في المناسبة.</p>
+                
+                <div class="text-right bg-gray-50 p-4 rounded-lg border mb-6 space-y-2">
+                    <h2 class="text-xl font-bold text-gray-800">${event.name}</h2>
+                    ${event.location ? `<p class="text-gray-600"><span class="font-semibold">الموقع:</span> ${event.location}</p>` : ''}
+                    ${event.event_date ? `<p class="text-gray-600"><span class="font-semibold">الوقت:</span> ${new Date(event.event_date).toLocaleString('ar-SA', { dateStyle: 'full', timeStyle: 'short' })}</p>` : ''}
+                </div>
+                
                 <div class="p-4 border rounded-lg inline-block"><img src="${qrCodeUrl}" alt="QR Code"></div><br><br>
                 <a href="${qrCodeUrl}" download="ticket-qrcode.png" class="mt-4 inline-block bg-green-500 text-white py-3 px-6 rounded-lg font-semibold hover:bg-green-600">تحميل الـ QR Code</a>
             </div></body>
         `);
-  } catch (err) {
-    // في حال حدوث خطأ غير متوقع (مثل مشكلة في قاعدة البيانات)
-    console.error("--- DATABASE INSERTION ERROR ---");
-    console.error(err); // سيطبع الخطأ الفعلي من قاعدة البيانات في سجلات Render
-    console.error("---------------------------------");
-    res
-      .status(500)
-      .send("حدث خطأ غير متوقع أثناء التسجيل. يرجى مراجعة سجلات الخادم.");
-  }
+
+    } catch (err) {
+        console.error("--- DATABASE INSERTION ERROR ---");
+        console.error(err);
+        res.status(500).send("An unexpected error occurred during registration. Please check the server logs.");
+    }
 });
 
 // QR Code verification route
@@ -435,28 +431,22 @@ app.get("/admin/events", checkAdmin, async (req, res) => {
 });
 
 // Add a new event
-app.post("/admin/events/add", checkAdmin, async (req, res) => {
-  const { name, description } = req.body;
-  try {
-    const result = await db.query(
-      `INSERT INTO events (name, description) VALUES ($1, $2) RETURNING id`,
-      [name, description]
-    );
-    const eventId = result.rows[0].id;
-    // Add default fields for the new event
-    await db.query(
-      `INSERT INTO form_fields (event_id, label, name, type) VALUES ($1, 'الاسم الكامل', 'name', 'text')`,
-      [eventId]
-    );
-    await db.query(
-      `INSERT INTO form_fields (event_id, label, name, type) VALUES ($1, 'البريد الإلكتروني', 'email', 'email')`,
-      [eventId]
-    );
-    res.redirect("/admin/events");
-  } catch (err) {
-    console.error("Add Event Error:", err);
-    res.status(500).send("Error creating event.");
-  }
+app.post('/admin/events/add', checkAdmin, async (req, res) => {
+    const { name, description, location, event_date } = req.body;
+    try {
+        const result = await db.query(
+            `INSERT INTO events (name, description, location, event_date) VALUES ($1, $2, $3, $4) RETURNING id`, 
+            [name, description, location, event_date]
+        );
+        const eventId = result.rows[0].id;
+        // إضافة الحقول الافتراضية
+        await db.query(`INSERT INTO form_fields (event_id, label, name, type) VALUES ($1, 'الاسم الكامل', 'name', 'text')`, [eventId]);
+        await db.query(`INSERT INTO form_fields (event_id, label, name, type) VALUES ($1, 'البريد الإلكتروني', 'email', 'email')`, [eventId]);
+        res.redirect('/admin/events');
+    } catch (err) {
+        console.error("Add Event Error:", err);
+        res.status(500).send("خطأ في إنشاء المناسبة.");
+    }
 });
 
 // مسار لتغيير حالة المناسبة (نشط/غير نشط)
