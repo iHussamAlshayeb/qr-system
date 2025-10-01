@@ -65,7 +65,6 @@ const setupDatabase = async () => {
     client.release();
   }
 };
-
 module.exports = {
   query: (text, params) => pool.query(text, params),
   setupDatabase: setupDatabase,

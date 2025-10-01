@@ -112,7 +112,6 @@ app.get("/", async (req, res) => {
         res.status(500).send("Error fetching events.");
     }
 });
-
 // Registration page for a specific event
 app.get("/register/:eventId", async (req, res) => {
     const { eventId } = req.params;
