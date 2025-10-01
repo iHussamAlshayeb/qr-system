@@ -1,6 +1,5 @@
 // 1. Import Libraries
 const express = require("express");
-app.use(express.static('public')); // <-- Add this line
 const db = require("./database.js");
 const path = require("path");
 const { v4: uuidv4 } = require("uuid");
@@ -18,6 +17,7 @@ const footerHtml = `
 
 // 2. App Setup
 const app = express();
+app.use(express.static('public')); // <-- Add this line
 app.use(
   session({
     secret: "a-very-secret-key-that-you-should-change",
