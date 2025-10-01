@@ -17,7 +17,7 @@ const footerHtml = `
 
 // 2. App Setup
 const app = express();
-app.use(express.static('public')); // <-- Add this line
+app.use(express.static("public")); // <-- Add this line
 app.use(
   session({
     secret: "a-very-secret-key-that-you-should-change",
@@ -61,35 +61,59 @@ const checkScanner = (req, res, next) => {
 
 // Homepage to list all events
 app.get("/", async (req, res) => {
-    try {
-        const result = await db.query(`SELECT * FROM events WHERE is_active = TRUE ORDER BY created_at DESC`);
-        
-        const eventsGridHtml = result.rows.map(event => {
-            const eventDate = event.event_date 
-                ? new Date(event.event_date).toLocaleString('ar-SA', { day: 'numeric', month: 'long', year: 'numeric' }) 
-                : '';
+  try {
+    const result = await db.query(
+      `SELECT * FROM events WHERE is_active = TRUE ORDER BY created_at DESC`
+    );
 
-            return `
+    const eventsGridHtml = result.rows
+      .map((event) => {
+        const eventDate = event.event_date
+          ? new Date(event.event_date).toLocaleString("ar-SA", {
+              day: "numeric",
+              month: "long",
+              year: "numeric",
+            })
+          : "";
+
+        return `
                 <div class="bg-white rounded-xl shadow-md overflow-hidden flex flex-col">
                     <div class="p-6 flex-grow">
-                        <h3 class="text-xl font-bold text-gray-800 mb-2">${event.name}</h3>
+                        <h3 class="text-xl font-bold text-gray-800 mb-2">${
+                          event.name
+                        }</h3>
                         
                         <div class="space-y-2 text-sm text-gray-600 mb-4">
-                            ${event.description ? `<p>${event.description}</p>` : ''}
-                            ${event.location ? `<p><span class="font-semibold">الموقع:</span> ${event.location}</p>` : ''}
-                            ${eventDate ? `<p><span class="font-semibold">التاريخ:</span> ${eventDate}</p>` : ''}
+                            ${
+                              event.description
+                                ? `<p>${event.description}</p>`
+                                : ""
+                            }
+                            ${
+                              event.location
+                                ? `<p><span class="font-semibold">الموقع:</span> ${event.location}</p>`
+                                : ""
+                            }
+                            ${
+                              eventDate
+                                ? `<p><span class="font-semibold">التاريخ:</span> ${eventDate}</p>`
+                                : ""
+                            }
                         </div>
                     </div>
                     <div class="p-6 bg-gray-50">
-                        <a href="/register/${event.id}" class="w-full text-center block bg-blue-600 text-white py-2 px-5 rounded-lg font-semibold hover:bg-blue-700">
+                        <a href="/register/${
+                          event.id
+                        }" class="w-full text-center block bg-blue-600 text-white py-2 px-5 rounded-lg font-semibold hover:bg-blue-700">
                             سجل الآن
                         </a>
                     </div>
                 </div>
             `;
-        }).join('');
+      })
+      .join("");
 
-        res.send(`
+    res.send(`
             <!DOCTYPE html>
             <html lang="ar" dir="rtl">
             <head>
@@ -101,7 +125,11 @@ app.get("/", async (req, res) => {
                 <div class="container mx-auto max-w-5xl py-12 px-4">
                     <h1 class="text-4xl font-bold text-center text-gray-800 mb-10">المناسبات المتاحة</h1>
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                        ${eventsGridHtml.length > 0 ? eventsGridHtml : '<p class="text-center text-gray-500 col-span-3">لا توجد مناسبات متاحة حاليًا.</p>'}
+                        ${
+                          eventsGridHtml.length > 0
+                            ? eventsGridHtml
+                            : '<p class="text-center text-gray-500 col-span-3">لا توجد مناسبات متاحة حاليًا.</p>'
+                        }
                         <a href="/lookup" class="text-sm text-gray-500">Find your ticket?</a>
                     </div>
                 </div>
@@ -109,89 +137,140 @@ app.get("/", async (req, res) => {
             </body>
             </html>
         `);
-    } catch (err) {
-        console.error("Homepage Error:", err);
-        res.status(500).send("Error fetching events.");
-    }
+  } catch (err) {
+    console.error("Homepage Error:", err);
+    res.status(500).send("Error fetching events.");
+  }
 });
 // Registration page for a specific event
 app.get("/register/:eventId", async (req, res) => {
-    const { eventId } = req.params;
-    try {
-        // Updated query to fetch all event details
-        const eventResult = await db.query(`SELECT name, description, location, event_date FROM events WHERE id = $1`, [eventId]);
-        const fieldsResult = await db.query(`SELECT * FROM form_fields WHERE event_id = $1 AND is_active = TRUE ORDER BY id`, [eventId]);
-        
-        const event = eventResult.rows[0];
-        if (!event) return res.status(404).send("Event not found.");
+  const { eventId } = req.params;
+  try {
+    // Updated query to fetch all event details
+    const eventResult = await db.query(
+      `SELECT name, description, location, event_date FROM events WHERE id = $1`,
+      [eventId]
+    );
+    const fieldsResult = await db.query(
+      `SELECT * FROM form_fields WHERE event_id = $1 AND is_active = TRUE ORDER BY id`,
+      [eventId]
+    );
 
-        // Build HTML for the event details
-        const eventDate = event.event_date 
-            ? new Date(event.event_date).toLocaleString('ar-SA', { dateStyle: 'full', timeStyle: 'short' }) 
-            : '';
-        const eventDetailsHtml = `
-            ${event.description ? `<p class="text-base">${event.description}</p>` : ''}
-            ${event.location ? `<p class="text-sm"><span class="font-semibold">الموقع:</span> ${event.location}</p>` : ''}
-            ${eventDate ? `<p class="text-sm"><span class="font-semibold">الوقت:</span> ${eventDate}</p>` : ''}
+    const event = eventResult.rows[0];
+    if (!event) return res.status(404).send("Event not found.");
+
+    // Build HTML for the event details
+    const eventDate = event.event_date
+      ? new Date(event.event_date).toLocaleString("ar-SA", {
+          dateStyle: "full",
+          timeStyle: "short",
+        })
+      : "";
+    const eventDetailsHtml = `
+            ${
+              event.description
+                ? `<p class="text-base">${event.description}</p>`
+                : ""
+            }
+            ${
+              event.location
+                ? `<p class="text-sm"><span class="font-semibold">الموقع:</span> ${event.location}</p>`
+                : ""
+            }
+            ${
+              eventDate
+                ? `<p class="text-sm"><span class="font-semibold">الوقت:</span> ${eventDate}</p>`
+                : ""
+            }
         `;
 
-        // Build HTML for dynamic form fields (no change here)
-        const fields = fieldsResult.rows;
-        let dynamicFieldsHtml = fields.map(field => {
-            // ... (your existing field generation logic) ...
-        }).join('');
+    // Build HTML for dynamic form fields (no change here)
+    const fields = fieldsResult.rows;
+    const dynamicFieldsHtml = fields
 
-        // Read template and replace all placeholders
-        fs.readFile(path.join(__dirname, "index.html"), "utf8", (err, htmlData) => {
-            if (err) throw err;
-            const finalHtml = htmlData
-                .replace('{-- EVENT_TITLE --}', event.name)
-                .replace('{-- EVENT_DETAILS --}', eventDetailsHtml) // New replacement
-                .replace('{-- DYNAMIC_FIELDS --}', dynamicFieldsHtml)
-                .replace('action="/register"', `action="/register/${eventId}"`);
-            res.send(finalHtml);
-        });
-    } catch (err) {
-        console.error("Registration Page Error:", err);
-        res.status(500).send("Error preparing form.");
-    }
+      .map((field) => {
+        const requiredAttr = field.required ? "required" : "";
+
+        const commonClasses =
+          "class='w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500'";
+
+        const labelHtml = `<label for="${field.name}" class="block text-gray-700 font-semibold mb-2">${field.label}</label>`;
+
+        if (field.type === "dropdown") {
+          const optionsArray = field.options.split(",");
+
+          const optionTags = optionsArray
+
+            .map(
+              (opt) => `<option value="${opt.trim()}">${opt.trim()}</option>`
+            )
+
+            .join("");
+
+          return `<div class="mb-4">${labelHtml}<select id="${field.name}" name="${field.name}" ${commonClasses} ${requiredAttr}>${optionTags}</select></div>`;
+        } else {
+          return `<div class="mb-4">${labelHtml}<input type="${field.type}" id="${field.name}" name="${field.name}" ${commonClasses} ${requiredAttr}></div>`;
+        }
+      })
+
+      .join("");
+
+    // Read template and replace all placeholders
+    fs.readFile(path.join(__dirname, "index.html"), "utf8", (err, htmlData) => {
+      if (err) throw err;
+      const finalHtml = htmlData
+        .replace("{-- EVENT_TITLE --}", event.name)
+        .replace("{-- EVENT_DETAILS --}", eventDetailsHtml) // New replacement
+        .replace("{-- DYNAMIC_FIELDS --}", dynamicFieldsHtml)
+        .replace('action="/register"', `action="/register/${eventId}"`);
+      res.send(finalHtml);
+    });
+  } catch (err) {
+    console.error("Registration Page Error:", err);
+    res.status(500).send("Error preparing form.");
+  }
 });
 
 // Handle form submission
 app.post("/register/:eventId", async (req, res) => {
-    const { eventId } = req.params;
-    const { name, email, national_id, ...dynamicData } = req.body; // Extract national_id
-    const ticketId = uuidv4();
-    const dynamicDataJson = JSON.stringify(dynamicData);
+  const { eventId } = req.params;
+  const { name, email, national_id, ...dynamicData } = req.body; // Extract national_id
+  const ticketId = uuidv4();
+  const dynamicDataJson = JSON.stringify(dynamicData);
 
-    try {
-        // Check if the email is already registered for this specific event
-        const checkResult = await db.query(
-            `SELECT id FROM registrations WHERE event_id = $1 AND email = $2`,
-            [eventId, email]
-        );
+  try {
+    // Check if the email is already registered for this specific event
+    const checkResult = await db.query(
+      `SELECT id FROM registrations WHERE event_id = $1 AND email = $2`,
+      [eventId, email]
+    );
 
-        if (checkResult.rows.length > 0) {
-            return res.status(400).send(`... HTML for already registered error ...`);
-        }
+    if (checkResult.rows.length > 0) {
+      return res.status(400).send(`... HTML for already registered error ...`);
+    }
 
-        // Insert the new registration, now including the national_id
-        await db.query(
-            `INSERT INTO registrations (event_id, name, email, national_id, dynamic_data, ticket_id) VALUES ($1, $2, $3, $4, $5, $6)`,
-            [eventId, name, email, national_id, dynamicDataJson, ticketId]
-        );
-        
-        // Fetch event details to display on the success page
-        const eventResult = await db.query('SELECT name, location, event_date FROM events WHERE id = $1', [eventId]);
-        const event = eventResult.rows[0];
-        
-        // Create QR Code and send the response
-        const verificationUrl = `${process.env.RENDER_EXTERNAL_URL || `http://localhost:${port}`}/verify/${ticketId}`;
-        const qrCodeUrl = await qr.toDataURL(verificationUrl);
+    // Insert the new registration, now including the national_id
+    await db.query(
+      `INSERT INTO registrations (event_id, name, email, national_id, dynamic_data, ticket_id) VALUES ($1, $2, $3, $4, $5, $6)`,
+      [eventId, name, email, national_id, dynamicDataJson, ticketId]
+    );
 
-        // (You can place your email sending code here)
+    // Fetch event details to display on the success page
+    const eventResult = await db.query(
+      "SELECT name, location, event_date FROM events WHERE id = $1",
+      [eventId]
+    );
+    const event = eventResult.rows[0];
 
-        res.status(200).send(`
+    // Create QR Code and send the response
+    const verificationUrl = `${
+      process.env.RENDER_EXTERNAL_URL || `http://localhost:${port}`
+    }/verify/${ticketId}`;
+    const qrCodeUrl = await qr.toDataURL(verificationUrl);
+
+    // (You can place your email sending code here)
+
+    res.status(200).send(`
             <body class="bg-gray-100 flex items-center justify-center min-h-screen">
             <script src="https://cdn.tailwindcss.com"></script>
             <div class="text-center bg-white p-10 rounded-xl shadow-lg max-w-lg w-full">
@@ -199,21 +278,35 @@ app.post("/register/:eventId", async (req, res) => {
                 <p class="text-gray-600 mb-6">شكرًا لك، ${name}. نتطلع لرؤيتك في المناسبة.</p>
                 
                 <div class="text-right bg-gray-50 p-4 rounded-lg border mb-6 space-y-2">
-                    <h2 class="text-xl font-bold text-gray-800">${event.name}</h2>
-                    ${event.location ? `<p class="text-gray-600"><span class="font-semibold">الموقع:</span> ${event.location}</p>` : ''}
-                    ${event.event_date ? `<p class="text-gray-600"><span class="font-semibold">الوقت:</span> ${new Date(event.event_date).toLocaleString('ar-SA', { dateStyle: 'full', timeStyle: 'short' })}</p>` : ''}
+                    <h2 class="text-xl font-bold text-gray-800">${
+                      event.name
+                    }</h2>
+                    ${
+                      event.location
+                        ? `<p class="text-gray-600"><span class="font-semibold">الموقع:</span> ${event.location}</p>`
+                        : ""
+                    }
+                    ${
+                      event.event_date
+                        ? `<p class="text-gray-600"><span class="font-semibold">الوقت:</span> ${new Date(
+                            event.event_date
+                          ).toLocaleString("ar-SA", {
+                            dateStyle: "full",
+                            timeStyle: "short",
+                          })}</p>`
+                        : ""
+                    }
                 </div>
                 
                 <div class="p-4 border rounded-lg inline-block"><img src="${qrCodeUrl}" alt="QR Code"></div><br><br>
                 <a href="${qrCodeUrl}" download="ticket-qrcode.png" class="mt-4 inline-block bg-green-500 text-white py-3 px-6 rounded-lg font-semibold hover:bg-green-600">تحميل الـ QR Code</a>
             </div></body>
         `);
-
-    } catch (err) {
-        console.error("--- REGISTRATION SUBMISSION ERROR ---");
-        console.error(err);
-        res.status(500).send("An unexpected error occurred during registration.");
-    }
+  } catch (err) {
+    console.error("--- REGISTRATION SUBMISSION ERROR ---");
+    console.error(err);
+    res.status(500).send("An unexpected error occurred during registration.");
+  }
 });
 
 // QR Code verification route
@@ -305,29 +398,35 @@ app.get("/login", (req, res) =>
 );
 
 app.post("/login", async (req, res) => {
-    const { username, password } = req.body;
-    try {
-        const result = await db.query('SELECT * FROM users WHERE username = $1', [username]);
-        const user = result.rows[0];
+  const { username, password } = req.body;
+  try {
+    const result = await db.query("SELECT * FROM users WHERE username = $1", [
+      username,
+    ]);
+    const user = result.rows[0];
 
-        if (user && await bcrypt.compare(password, user.password)) {
-            // Login successful
-            req.session.isLoggedIn = true;
-            req.session.role = user.role;
-            req.session.username = user.username;
-            req.session.userId = user.id;
+    if (user && (await bcrypt.compare(password, user.password))) {
+      // Login successful
+      req.session.isLoggedIn = true;
+      req.session.role = user.role;
+      req.session.username = user.username;
+      req.session.userId = user.id;
 
-            // Send a success response with the redirect URL
-            const redirectUrl = user.role === 'admin' ? '/admin/home' : '/scanner';
-            return res.json({ success: true, redirectUrl });
-        } else {
-            // Login failed
-            return res.status(401).json({ success: false, message: 'اسم المستخدم أو كلمة المرور خاطئة' });
-        }
-    } catch (err) {
-        console.error("Login Error:", err);
-        return res.status(500).json({ success: false, message: 'حدث خطأ في الخادم.' });
+      // Send a success response with the redirect URL
+      const redirectUrl = user.role === "admin" ? "/admin/home" : "/scanner";
+      return res.json({ success: true, redirectUrl });
+    } else {
+      // Login failed
+      return res
+        .status(401)
+        .json({ success: false, message: "اسم المستخدم أو كلمة المرور خاطئة" });
     }
+  } catch (err) {
+    console.error("Login Error:", err);
+    return res
+      .status(500)
+      .json({ success: false, message: "حدث خطأ في الخادم." });
+  }
 });
 
 // New admin homepage/main menu
@@ -426,71 +525,87 @@ app.get("/admin/events", checkAdmin, async (req, res) => {
 });
 
 // Add a new event
-app.post('/admin/events/add', checkAdmin, async (req, res) => {
-    const { name, description, location, event_date } = req.body;
-    try {
-        // This line correctly defines the 'result' variable
-        const result = await db.query(
-            `INSERT INTO events (name, description, location, event_date) VALUES ($1, $2, $3, $4) RETURNING id`, 
-            [name, description, location, event_date]
-        );
-        
-        // Now this line will work because 'result' is defined
-        const eventId = result.rows[0].id;
-        
-        // Add default fields for the new event
-        await db.query(`INSERT INTO form_fields (event_id, label, name, type, required) VALUES ($1, 'الاسم الكامل', 'name', 'text', TRUE)`, [eventId]);
-        await db.query(`INSERT INTO form_fields (event_id, label, name, type, required) VALUES ($1, 'البريد الإلكتروني', 'email', 'email', TRUE)`, [eventId]);
-        await db.query(`INSERT INTO form_fields (event_id, label, name, type, required) VALUES ($1, 'رقم الهوية الوطنية', 'national_id', 'number', TRUE)`, [eventId]);
-        
-        res.redirect('/admin/events');
-    } catch (err) {
-        console.error("Add Event Error:", err);
-        res.status(500).send("خطأ في إنشاء المناسبة.");
-    }
+app.post("/admin/events/add", checkAdmin, async (req, res) => {
+  const { name, description, location, event_date } = req.body;
+  try {
+    // This line correctly defines the 'result' variable
+    const result = await db.query(
+      `INSERT INTO events (name, description, location, event_date) VALUES ($1, $2, $3, $4) RETURNING id`,
+      [name, description, location, event_date]
+    );
+
+    // Now this line will work because 'result' is defined
+    const eventId = result.rows[0].id;
+
+    // Add default fields for the new event
+    await db.query(
+      `INSERT INTO form_fields (event_id, label, name, type, required) VALUES ($1, 'الاسم الكامل', 'name', 'text', TRUE)`,
+      [eventId]
+    );
+    await db.query(
+      `INSERT INTO form_fields (event_id, label, name, type, required) VALUES ($1, 'البريد الإلكتروني', 'email', 'email', TRUE)`,
+      [eventId]
+    );
+    await db.query(
+      `INSERT INTO form_fields (event_id, label, name, type, required) VALUES ($1, 'رقم الهوية الوطنية', 'national_id', 'number', TRUE)`,
+      [eventId]
+    );
+
+    res.redirect("/admin/events");
+  } catch (err) {
+    console.error("Add Event Error:", err);
+    res.status(500).send("خطأ في إنشاء المناسبة.");
+  }
 });
 
 // 2. Add a route to display the lookup page
-app.get('/lookup', (req, res) => {
-    res.sendFile(path.join(__dirname, 'lookup.html'));
+app.get("/lookup", (req, res) => {
+  res.sendFile(path.join(__dirname, "lookup.html"));
 });
 
 // 3. Add a route to handle the lookup and display results
-app.post('/lookup', async (req, res) => {
-    const { national_id } = req.body;
-    try {
-        const sql = `
+app.post("/lookup", async (req, res) => {
+  const { national_id } = req.body;
+  try {
+    const sql = `
             SELECT r.name, r.ticket_id, e.name as event_name, e.event_date 
             FROM registrations r 
             JOIN events e ON r.event_id = e.id 
             WHERE r.national_id = $1 
             ORDER BY e.event_date DESC
         `;
-        const result = await db.query(sql, [national_id]);
+    const result = await db.query(sql, [national_id]);
 
-        const ticketListHtml = result.rows.map(row => {
-            const qrCodeUrl = `${process.env.RENDER_EXTERNAL_URL || `http://localhost:${port}`}/verify/${row.ticket_id}`;
-            return `
+    const ticketListHtml = result.rows
+      .map((row) => {
+        const qrCodeUrl = `${
+          process.env.RENDER_EXTERNAL_URL || `http://localhost:${port}`
+        }/verify/${row.ticket_id}`;
+        return `
                 <div class="border rounded-lg p-4">
                     <h3 class="font-bold">${row.event_name}</h3>
                     <p>Ticket for: ${row.name}</p>
                     <a href="${qrCodeUrl}" target="_blank" class="text-blue-500">View QR Code</a>
                 </div>
             `;
-        }).join('');
+      })
+      .join("");
 
-        res.send(`
+    res.send(`
             <div class="space-y-4">
                 <h2 class="text-xl">Tickets found for ID: ${national_id}</h2>
-                ${ticketListHtml.length > 0 ? ticketListHtml : '<p>No tickets found for this ID.</p>'}
+                ${
+                  ticketListHtml.length > 0
+                    ? ticketListHtml
+                    : "<p>No tickets found for this ID.</p>"
+                }
             </div>
         `);
-    } catch (err) {
-        console.error("Lookup Error:", err);
-        res.status(500).send("An error occurred.");
-    }
+  } catch (err) {
+    console.error("Lookup Error:", err);
+    res.status(500).send("An error occurred.");
+  }
 });
-
 
 // مسار لتغيير حالة المناسبة (نشط/غير نشط)
 app.post("/admin/events/toggle/:eventId", checkAdmin, async (req, res) => {
@@ -667,30 +782,34 @@ app.get("/admin/dashboard/:eventId", checkAdmin, async (req, res) => {
 });
 
 // 1. عرض صفحة تفاصيل المسجل
-app.get('/admin/registration/:registrationId', checkAdmin, async (req, res) => {
-    const { registrationId } = req.params;
-    try {
-        const result = await db.query(
-            `SELECT r.*, e.name as event_name 
+app.get("/admin/registration/:registrationId", checkAdmin, async (req, res) => {
+  const { registrationId } = req.params;
+  try {
+    const result = await db.query(
+      `SELECT r.*, e.name as event_name 
              FROM registrations r
              JOIN events e ON r.event_id = e.id
              WHERE r.id = $1`,
-            [registrationId]
-        );
+      [registrationId]
+    );
 
-        const row = result.rows[0];
-        if (!row) return res.status(404).send("التسجيل غير موجود.");
+    const row = result.rows[0];
+    if (!row) return res.status(404).send("التسجيل غير موجود.");
 
-        const verificationUrl = `${process.env.RENDER_EXTERNAL_URL || `http://localhost:${port}`}/verify/${row.ticket_id}`;
-        const qrCodeUrl = await qr.toDataURL(verificationUrl);
+    const verificationUrl = `${
+      process.env.RENDER_EXTERNAL_URL || `http://localhost:${port}`
+    }/verify/${row.ticket_id}`;
+    const qrCodeUrl = await qr.toDataURL(verificationUrl);
 
-        const dynamicData = row.dynamic_data || {};
-        let dynamicDataHtml = Object.entries(dynamicData).map(([key, value]) => {
-            const formattedKey = key.replace(/_/g, ' '); 
-            return `<div class="mb-2"><dt class="font-semibold text-gray-800 capitalize">${formattedKey}</dt><dd class="text-gray-600">${value}</dd></div>`;
-        }).join('');
+    const dynamicData = row.dynamic_data || {};
+    let dynamicDataHtml = Object.entries(dynamicData)
+      .map(([key, value]) => {
+        const formattedKey = key.replace(/_/g, " ");
+        return `<div class="mb-2"><dt class="font-semibold text-gray-800 capitalize">${formattedKey}</dt><dd class="text-gray-600">${value}</dd></div>`;
+      })
+      .join("");
 
-        res.send(`
+    res.send(`
             <!DOCTYPE html>
             <html lang="ar" dir="rtl">
             <head>
@@ -703,9 +822,13 @@ app.get('/admin/registration/:registrationId', checkAdmin, async (req, res) => {
                     <div class="flex justify-between items-center mb-6">
                         <div>
                             <h1 class="text-2xl font-bold text-gray-800">تفاصيل التسجيل</h1>
-                            <p class="text-gray-500">للمناسبة: ${row.event_name}</p>
+                            <p class="text-gray-500">للمناسبة: ${
+                              row.event_name
+                            }</p>
                         </div>
-                        <a href="/admin/registration/edit/${row.id}" class="bg-yellow-500 text-white py-2 px-5 rounded-lg font-semibold hover:bg-yellow-600 transition duration-300">
+                        <a href="/admin/registration/edit/${
+                          row.id
+                        }" class="bg-yellow-500 text-white py-2 px-5 rounded-lg font-semibold hover:bg-yellow-600 transition duration-300">
                             تعديل البيانات
                         </a>
                     </div>
@@ -713,16 +836,30 @@ app.get('/admin/registration/:registrationId', checkAdmin, async (req, res) => {
                         <div class="md:col-span-1 bg-gray-50 p-4 rounded-lg border">
                             <h2 class="font-bold text-lg mb-4 border-b pb-2">البيانات الأساسية</h2>
                             <dl class="space-y-2 text-sm">
-                                <div><dt class="font-semibold text-gray-800">الاسم الكامل</dt><dd class="text-gray-600">${row.name}</dd></div>
-                                <div><dt class="font-semibold text-gray-800">البريد الإلكتروني</dt><dd class="text-gray-600">${row.email}</dd></div>
-                                <div><dt class="font-semibold text-gray-800">حالة التذكرة</dt><dd class="font-bold ${row.status === 'USED' ? 'text-green-600' : 'text-yellow-600'}">${row.status === 'USED' ? 'تم استخدامها' : 'لم تُستخدم'}</dd></div>
+                                <div><dt class="font-semibold text-gray-800">الاسم الكامل</dt><dd class="text-gray-600">${
+                                  row.name
+                                }</dd></div>
+                                <div><dt class="font-semibold text-gray-800">البريد الإلكتروني</dt><dd class="text-gray-600">${
+                                  row.email
+                                }</dd></div>
+                                <div><dt class="font-semibold text-gray-800">حالة التذكرة</dt><dd class="font-bold ${
+                                  row.status === "USED"
+                                    ? "text-green-600"
+                                    : "text-yellow-600"
+                                }">${
+      row.status === "USED" ? "تم استخدامها" : "لم تُستخدم"
+    }</dd></div>
                             </dl>
                         </div>
 
                         <div class="md:col-span-1 bg-gray-50 p-4 rounded-lg border">
                             <h2 class="font-bold text-lg mb-4 border-b pb-2">البيانات الإضافية</h2>
                             <dl class="space-y-2 text-sm">
-                                ${dynamicDataHtml.length > 0 ? dynamicDataHtml : '<p class="text-gray-500">لا توجد بيانات إضافية.</p>'}
+                                ${
+                                  dynamicDataHtml.length > 0
+                                    ? dynamicDataHtml
+                                    : '<p class="text-gray-500">لا توجد بيانات إضافية.</p>'
+                                }
                             </dl>
                         </div>
                         
@@ -731,44 +868,60 @@ app.get('/admin/registration/:registrationId', checkAdmin, async (req, res) => {
                             <div class="p-2 border bg-white rounded-lg">
                                 <img src="${qrCodeUrl}" alt="QR Code" class="w-48 h-48">
                             </div>
-                            <a href="${qrCodeUrl}" download="qrcode-${row.name.replace(/\s/g, '_')}.png" class="mt-4 text-sm text-blue-500 hover:underline">تحميل الرمز</a>
+                            <a href="${qrCodeUrl}" download="qrcode-${row.name.replace(
+      /\s/g,
+      "_"
+    )}.png" class="mt-4 text-sm text-blue-500 hover:underline">تحميل الرمز</a>
                         </div>
                     </div>
 
                     <div class="text-center mt-8">
-                        <a href="/admin/dashboard/${row.event_id}" class="text-gray-500 hover:underline">&larr; العودة إلى لوحة التحكم</a>
+                        <a href="/admin/dashboard/${
+                          row.event_id
+                        }" class="text-gray-500 hover:underline">&larr; العودة إلى لوحة التحكم</a>
                     </div>
                 </div>
                  ${footerHtml}
             </body>
             </html>
         `);
-    } catch (err) {
-        console.error("Registration Details Error:", err);
-        res.status(500).send("Error fetching registration details.");
-    }
+  } catch (err) {
+    console.error("Registration Details Error:", err);
+    res.status(500).send("Error fetching registration details.");
+  }
 });
 
 // 1. عرض صفحة تعديل بيانات المسجل
-app.get('/admin/registration/edit/:registrationId', checkAdmin, async (req, res) => {
+app.get(
+  "/admin/registration/edit/:registrationId",
+  checkAdmin,
+  async (req, res) => {
     const { registrationId } = req.params;
     try {
-        const result = await db.query('SELECT * FROM registrations WHERE id = $1', [registrationId]);
-        const registration = result.rows[0];
-        if (!registration) return res.status(404).send("التسجيل غير موجود.");
+      const result = await db.query(
+        "SELECT * FROM registrations WHERE id = $1",
+        [registrationId]
+      );
+      const registration = result.rows[0];
+      if (!registration) return res.status(404).send("التسجيل غير موجود.");
 
-        // استخراج البيانات الديناميكية لملء الفورم
-        const dynamicData = registration.dynamic_data || {};
-        const fieldsResult = await db.query('SELECT name, label FROM form_fields WHERE event_id = $1 ORDER BY id', [registration.event_id]);
-        
-        // بناء حقول الفورم الديناميكية مع تعبئة القيم الحالية
-        let dynamicFieldsHtml = fieldsResult.rows.map(field => {
-            if (field.name === 'name' || field.name === 'email') return ''; // تخطي الحقول الأساسية
-            const value = dynamicData[field.name] || '';
-            return `<div class="mb-4"><label for="${field.name}" class="block font-semibold">${field.label}</label><input type="text" name="${field.name}" id="${field.name}" value="${value}" class="w-full px-4 py-2 border rounded-lg"></div>`;
-        }).join('');
+      // استخراج البيانات الديناميكية لملء الفورم
+      const dynamicData = registration.dynamic_data || {};
+      const fieldsResult = await db.query(
+        "SELECT name, label FROM form_fields WHERE event_id = $1 ORDER BY id",
+        [registration.event_id]
+      );
 
-        res.send(`
+      // بناء حقول الفورم الديناميكية مع تعبئة القيم الحالية
+      let dynamicFieldsHtml = fieldsResult.rows
+        .map((field) => {
+          if (field.name === "name" || field.name === "email") return ""; // تخطي الحقول الأساسية
+          const value = dynamicData[field.name] || "";
+          return `<div class="mb-4"><label for="${field.name}" class="block font-semibold">${field.label}</label><input type="text" name="${field.name}" id="${field.name}" value="${value}" class="w-full px-4 py-2 border rounded-lg"></div>`;
+        })
+        .join("");
+
+      res.send(`
             <!DOCTYPE html><html lang="ar" dir="rtl"><head><title>تعديل البيانات</title><script src="https://cdn.tailwindcss.com"></script>
             <link rel="stylesheet" href="/css/style.css">
             </head>
@@ -789,28 +942,33 @@ app.get('/admin/registration/edit/:registrationId', checkAdmin, async (req, res)
             </body></html>
         `);
     } catch (err) {
-        res.status(500).send("خطأ في تحميل صفحة التعديل.");
+      res.status(500).send("خطأ في تحميل صفحة التعديل.");
     }
-});
+  }
+);
 
 // 2. استقبال البيانات المحدثة وحفظها في قاعدة البيانات
-app.post('/admin/registration/update/:registrationId', checkAdmin, async (req, res) => {
+app.post(
+  "/admin/registration/update/:registrationId",
+  checkAdmin,
+  async (req, res) => {
     const { registrationId } = req.params;
     const { name, email, ...dynamicData } = req.body;
-    
+
     try {
-        // تحديث البيانات الأساسية والديناميكية
-        await db.query(
-            'UPDATE registrations SET name = $1, email = $2, dynamic_data = $3 WHERE id = $4',
-            [name, email, dynamicData, registrationId]
-        );
-        // إعادة توجيهه إلى صفحة التفاصيل لرؤية التغييرات
-        res.redirect(`/admin/registration/${registrationId}`);
+      // تحديث البيانات الأساسية والديناميكية
+      await db.query(
+        "UPDATE registrations SET name = $1, email = $2, dynamic_data = $3 WHERE id = $4",
+        [name, email, dynamicData, registrationId]
+      );
+      // إعادة توجيهه إلى صفحة التفاصيل لرؤية التغييرات
+      res.redirect(`/admin/registration/${registrationId}`);
     } catch (err) {
-        console.error("Update Registration Error:", err);
-        res.status(500).send("خطأ في حفظ التعديلات.");
+      console.error("Update Registration Error:", err);
+      res.status(500).send("خطأ في حفظ التعديلات.");
     }
-});
+  }
+);
 
 // Add/Delete form fields for an event
 app.post("/admin/add-field/:eventId", checkAdmin, async (req, res) => {
