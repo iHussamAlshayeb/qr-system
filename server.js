@@ -1,5 +1,6 @@
 // 1. Import Libraries
 const express = require("express");
+app.use(express.static('public')); // <-- Add this line
 const db = require("./database.js");
 const path = require("path");
 const { v4: uuidv4 } = require("uuid");
@@ -84,7 +85,9 @@ app.get("/", async (req, res) => {
       .join("");
 
     res.send(`
-            <!DOCTYPE html><html lang="ar" dir="rtl"><head><title>قائمة المناسبات</title><script src="https://cdn.tailwindcss.com"></script></head>
+            <!DOCTYPE html><html lang="ar" dir="rtl"><head><title>قائمة المناسبات</title><script src="https://cdn.tailwindcss.com"></script>
+            <link rel="stylesheet" href="/css/style.css">
+            </head>
             <body class="bg-gray-100"><div class="container mx-auto max-w-5xl py-12 px-4">
                 <h1 class="text-4xl font-bold text-center text-gray-800 mb-10">المناسبات المتاحة</h1>
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -278,7 +281,9 @@ app.get("/verify/:ticketId", checkScanner, async (req, res) => {
       )
       .join("");
     res.send(`
-            <!DOCTYPE html><html lang="ar" dir="rtl"><head><title>تم التحقق</title><script src="https://cdn.tailwindcss.com"></script></head>
+            <!DOCTYPE html><html lang="ar" dir="rtl"><head><title>تم التحقق</title><script src="https://cdn.tailwindcss.com"></script>
+            <link rel="stylesheet" href="/css/style.css">
+            </head>
             <body class="bg-gray-100 flex items-center justify-center min-h-screen">
             <div class="w-full max-w-md bg-white p-8 rounded-xl shadow-lg text-center">
                 <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100"><svg class="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg></div>
@@ -343,6 +348,7 @@ app.get("/admin/home", checkAdmin, (req, res) => {
             <meta charset="UTF-8">
             <title>لوحة التحكم الرئيسية</title>
             <script src="https://cdn.tailwindcss.com"></script>
+            <link rel="stylesheet" href="/css/style.css">
         </head>
         <body class="bg-gray-100">
             <div class="container mx-auto max-w-4xl mt-16 p-8">
@@ -573,6 +579,7 @@ app.get("/admin/dashboard/:eventId", checkAdmin, async (req, res) => {
                 <meta charset="UTF-8">
                 <title>لوحة تحكم: ${event.name}</title>
                 <script src="https://cdn.tailwindcss.com"></script>
+                <link rel="stylesheet" href="/css/style.css">
             </head>
             <body class="bg-gray-100">
                 <div class="container mx-auto max-w-6xl mt-10 mb-10 p-8 bg-white rounded-xl shadow-lg">
@@ -739,6 +746,7 @@ app.get('/admin/registration/:registrationId', checkAdmin, async (req, res) => {
             <head>
                 <title>تفاصيل التسجيل</title>
                 <script src="https://cdn.tailwindcss.com"></script>
+                <link rel="stylesheet" href="/css/style.css">
             </head>
             <body class="bg-gray-100 flex items-center justify-center min-h-screen py-12">
                 <div class="w-full max-w-4xl bg-white p-8 rounded-xl shadow-lg">
@@ -811,7 +819,9 @@ app.get('/admin/registration/edit/:registrationId', checkAdmin, async (req, res)
         }).join('');
 
         res.send(`
-            <!DOCTYPE html><html lang="ar" dir="rtl"><head><title>تعديل البيانات</title><script src="https://cdn.tailwindcss.com"></script></head>
+            <!DOCTYPE html><html lang="ar" dir="rtl"><head><title>تعديل البيانات</title><script src="https://cdn.tailwindcss.com"></script>
+            <link rel="stylesheet" href="/css/style.css">
+            </head>
             <body class="bg-gray-100 flex items-center justify-center min-h-screen">
             <div class="w-full max-w-lg bg-white p-8 rounded-xl shadow-lg">
                 <h1 class="text-2xl font-bold text-center mb-6">تعديل بيانات: ${registration.name}</h1>
@@ -933,6 +943,7 @@ app.get("/admin/users", checkAdmin, async (req, res) => {
             <head>
                 <title>إدارة المستخدمين</title>
                 <script src="https://cdn.tailwindcss.com"></script>
+                <link rel="stylesheet" href="/css/style.css">
             </head>
             <body class="bg-gray-100">
                 <div class="container mx-auto max-w-4xl mt-10 p-8 bg-white rounded-xl shadow-lg">
@@ -1012,7 +1023,9 @@ app.get("/admin/users/edit/:userId", checkAdmin, async (req, res) => {
   ]);
   const user = result.rows[0];
   res.send(`
-        <!DOCTYPE html><html lang="ar" dir="rtl"><head><title>تغيير كلمة المرور</title><script src="https://cdn.tailwindcss.com"></script></head>
+        <!DOCTYPE html><html lang="ar" dir="rtl"><head><title>تغيير كلمة المرور</title><script src="https://cdn.tailwindcss.com"></script>
+        <link rel="stylesheet" href="/css/style.css">
+        </head>
         <body class="bg-gray-100 flex items-center justify-center min-h-screen">
         <div class="w-full max-w-sm bg-white p-8 rounded-xl shadow-lg">
             <h1 class="text-2xl font-bold text-center text-gray-800 mb-6">تغيير كلمة المرور لـ <span class="text-blue-600">${user.username}</span></h1>
@@ -1058,6 +1071,7 @@ app.get("/scanner", checkScanner, (req, res) => {
             <meta charset="UTF-8">
             <title>جاهز للمسح</title>
             <script src="https://cdn.tailwindcss.com"></script>
+            <link rel="stylesheet" href="/css/style.css">
         </head>
         <body class="bg-gray-100 flex items-center justify-center min-h-screen">
             <div class="w-full max-w-md bg-white p-8 rounded-xl shadow-lg text-center">
