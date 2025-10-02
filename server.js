@@ -565,47 +565,63 @@ app.get("/lookup", (req, res) => {
 });
 
 // 3. Add a route to handle the lookup and display results
-app.post("/lookup", async (req, res) => {
-  const { national_id } = req.body;
-  try {
-    const sql = `
+// server.js
+
+app.post('/lookup', async (req, res) => {
+    const { national_id } = req.body;
+    try {
+        const sql = `
             SELECT r.name, r.ticket_id, e.name as event_name, e.event_date 
             FROM registrations r 
             JOIN events e ON r.event_id = e.id 
             WHERE r.national_id = $1 
             ORDER BY e.event_date DESC
         `;
-    const result = await db.query(sql, [national_id]);
+        const result = await db.query(sql, [national_id]);
 
-    const ticketListHtml = result.rows
-      .map((row) => {
-        const qrCodeUrl = `${
-          process.env.RENDER_EXTERNAL_URL || `http://localhost:${port}`
-        }/verify/${row.ticket_id}`;
-        return `
-                <div class="border rounded-lg p-4">
-                    <h3 class="font-bold">${row.event_name}</h3>
-                    <p>Ticket for: ${row.name}</p>
-                    <a href="${qrCodeUrl}" target="_blank" class="text-blue-500">View QR Code</a>
+        const ticketListHtml = result.rows.map(row => {
+            const verificationUrl = `${process.env.RENDER_EXTERNAL_URL || `http://localhost:${port}`}/verify/${row.ticket_id}`;
+            return `
+                <div class="border rounded-lg p-6 bg-gray-50 flex items-center justify-between">
+                    <div>
+                        <h3 class="text-xl font-bold text-gray-800">${row.event_name}</h3>
+                        <p class="text-gray-600 mt-1">التذكرة باسم: ${row.name}</p>
+                    </div>
+                    <a href="${verificationUrl}" target="_blank" class="bg-green-500 text-white py-2 px-4 rounded-lg font-semibold hover:bg-green-600">
+                        عرض رمز QR
+                    </a>
                 </div>
             `;
-      })
-      .join("");
+        }).join('');
 
-    res.send(`
-            <div class="space-y-4">
-                <h2 class="text-xl">Tickets found for ID: ${national_id}</h2>
-                ${
-                  ticketListHtml.length > 0
-                    ? ticketListHtml
-                    : "<p>No tickets found for this ID.</p>"
-                }
-            </div>
+        res.send(`
+            <!DOCTYPE html>
+            <html lang="ar" dir="rtl">
+            <head>
+                <meta charset="UTF-8">
+                <title>نتائج البحث</title>
+                <script src="https://cdn.tailwindcss.com"></script>
+            </head>
+            <body class="bg-gray-100 flex items-center justify-center min-h-screen py-12">
+                <div class="w-full max-w-2xl bg-white p-8 rounded-xl shadow-lg">
+                    <h1 class="text-2xl font-bold text-center text-gray-800 mb-2">نتائج البحث</h1>
+                    <p class="text-center text-gray-500 mb-8">التذاكر المسجلة برقم الهوية: ${national_id}</p>
+                    
+                    <div class="space-y-4">
+                        ${ticketListHtml.length > 0 ? ticketListHtml : '<p class="text-center text-gray-500 bg-gray-50 p-6 rounded-lg">لم يتم العثور على أي تذاكر مسجلة بهذا الرقم.</p>'}
+                    </div>
+
+                    <div class="text-center mt-8">
+                        <a href="/lookup" class="text-blue-500 hover:underline">&larr; البحث مرة أخرى</a>
+                    </div>
+                </div>
+            </body>
+            </html>
         `);
-  } catch (err) {
-    console.error("Lookup Error:", err);
-    res.status(500).send("An error occurred.");
-  }
+    } catch (err) {
+        console.error("Lookup Error:", err);
+        res.status(500).send("حدث خطأ أثناء البحث.");
+    }
 });
 
 // مسار لتغيير حالة المناسبة (نشط/غير نشط)
