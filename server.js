@@ -61,59 +61,34 @@ const checkScanner = (req, res, next) => {
 
 // Homepage to list all events
 app.get("/", async (req, res) => {
-  try {
-    const result = await db.query(
-      `SELECT * FROM events WHERE is_active = TRUE ORDER BY created_at DESC`
-    );
+    try {
+        const result = await db.query(`SELECT * FROM events WHERE is_active = TRUE ORDER BY created_at DESC`);
+        
+        const eventsGridHtml = result.rows.map(event => {
+            const eventDate = event.event_date 
+                ? new Date(event.event_date).toLocaleString('ar-SA', { day: 'numeric', month: 'long', year: 'numeric' }) 
+                : '';
 
-    const eventsGridHtml = result.rows
-      .map((event) => {
-        const eventDate = event.event_date
-          ? new Date(event.event_date).toLocaleString("ar-SA", {
-              day: "numeric",
-              month: "long",
-              year: "numeric",
-            })
-          : "";
-
-        return `
-                <div class="bg-white rounded-xl shadow-md overflow-hidden flex flex-col">
+            return `
+                <div class="bg-white rounded-xl shadow-md overflow-hidden flex flex-col transform hover:-translate-y-1 transition-transform duration-300">
                     <div class="p-6 flex-grow">
-                        <h3 class="text-xl font-bold text-gray-800 mb-2">${
-                          event.name
-                        }</h3>
-                        
+                        <h3 class="text-xl font-bold text-gray-800 mb-2">${event.name}</h3>
                         <div class="space-y-2 text-sm text-gray-600 mb-4">
-                            ${
-                              event.description
-                                ? `<p>${event.description}</p>`
-                                : ""
-                            }
-                            ${
-                              event.location
-                                ? `<p><span class="font-semibold">الموقع:</span> ${event.location}</p>`
-                                : ""
-                            }
-                            ${
-                              eventDate
-                                ? `<p><span class="font-semibold">التاريخ:</span> ${eventDate}</p>`
-                                : ""
-                            }
+                            ${event.description ? `<p>${event.description}</p>` : ''}
+                            ${event.location ? `<p><span class="font-semibold">الموقع:</span> ${event.location}</p>` : ''}
+                            ${eventDate ? `<p><span class="font-semibold">التاريخ:</span> ${eventDate}</p>` : ''}
                         </div>
                     </div>
                     <div class="p-6 bg-gray-50">
-                        <a href="/register/${
-                          event.id
-                        }" class="w-full text-center block bg-blue-600 text-white py-2 px-5 rounded-lg font-semibold hover:bg-blue-700">
+                        <a href="/register/${event.id}" class="w-full text-center block bg-blue-600 text-white py-2 px-5 rounded-lg font-semibold hover:bg-blue-700">
                             سجل الآن
                         </a>
                     </div>
                 </div>
             `;
-      })
-      .join("");
+        }).join('');
 
-    res.send(`
+        res.send(`
             <!DOCTYPE html>
             <html lang="ar" dir="rtl">
             <head>
@@ -121,27 +96,28 @@ app.get("/", async (req, res) => {
                 <script src="https://cdn.tailwindcss.com"></script>
             </head>
             <body class="bg-gray-100">
-            
                 <div class="container mx-auto max-w-5xl py-12 px-4">
-                    <h1 class="text-4xl font-bold text-center text-gray-800 mb-10">المناسبات المتاحة</h1>
+                    <h1 class="text-4xl font-bold text-center text-gray-800 mb-4">المناسبات المتاحة</h1>
+                    
+                    <div class="text-center mb-10">
+                        <a href="/lookup" class="text-blue-600 hover:underline font-semibold">هل تبحث عن تذكرتك؟</a>
+                    </div>
+                    
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                        ${
-                          eventsGridHtml.length > 0
-                            ? eventsGridHtml
-                            : '<p class="text-center text-gray-500 col-span-3">لا توجد مناسبات متاحة حاليًا.</p>'
-                        }
-                        <a href="/lookup" class="text-sm text-gray-500">Find your ticket?</a>
+                        ${eventsGridHtml.length > 0 ? eventsGridHtml : '<p class="text-center text-gray-500 col-span-3">لا توجد مناسبات متاحة حاليًا.</p>'}
                     </div>
                 </div>
                 ${footerHtml}
             </body>
             </html>
         `);
-  } catch (err) {
-    console.error("Homepage Error:", err);
-    res.status(500).send("Error fetching events.");
-  }
+    } catch (err) {
+        console.error("Homepage Error:", err);
+        res.status(500).send("Error fetching events.");
+    }
 });
+
+
 // Registration page for a specific event
 app.get("/register/:eventId", async (req, res) => {
   const { eventId } = req.params;
