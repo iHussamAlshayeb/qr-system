@@ -649,11 +649,34 @@ app.post('/lookup', async (req, res) => {
             `;
         }).join('');
 
-        // The rest of the page remains the same...
+        
         res.send(`
-            `);
+            <!DOCTYPE html>
+            <html lang="ar" dir="rtl">
+            <head>
+                <meta charset="UTF-8">
+                <title>نتائج البحث</title>
+                <script src="https://cdn.tailwindcss.com"></script>
+            </head>
+            <body class="bg-gray-100 flex items-center justify-center min-h-screen py-12">
+                <div class="w-full max-w-2xl bg-white p-8 rounded-xl shadow-lg">
+                    <h1 class="text-2xl font-bold text-center text-gray-800 mb-2">نتائج البحث</h1>
+                    <p class="text-center text-gray-500 mb-8">التذاكر المسجلة برقم الهوية: ${national_id}</p>
+                    
+                    <div class="space-y-4">
+                        ${ticketListHtml.length > 0 ? ticketListHtml : '<p class="text-center text-gray-500 bg-gray-50 p-6 rounded-lg">لم يتم العثور على أي تذاكر مسجلة بهذا الرقم.</p>'}
+                    </div>
+
+                    <div class="text-center mt-8">
+                        <a href="/lookup" class="text-blue-500 hover:underline">&larr; البحث مرة أخرى</a>
+                    </div>
+                </div>
+            </body>
+            </html>
+        `);
     } catch (err) {
-        // ...
+        console.error("Lookup Error:", err);
+        res.status(500).send("حدث خطأ أثناء البحث.");
     }
 });
 
