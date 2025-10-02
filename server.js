@@ -377,6 +377,7 @@ app.get("/verify/:ticketId", checkScanner, async (req, res) => {
                 <div class="mt-6 text-left bg-gray-50 p-4 rounded-lg border divide-y">
                     <div class="py-2"><p class="text-sm font-semibold text-gray-700">المناسبة</p><p class="text-gray-900">${row.event_name}</p></div>
                     <div class="py-2"><p class="text-sm font-semibold text-gray-700">الاسم</p><p class="text-gray-900">${row.name}</p></div>
+                    <div class="py-2"><p class="text-sm font-semibold text-gray-700">رقم الهوية</p><p class="text-gray-900">${row.national_id || 'غير متوفر'}</p></div>
                     <div class="py-2"><p class="text-sm font-semibold text-gray-700">البريد الإلكتروني</p><p class="text-gray-900">${row.email}</p></div>
                     ${dynamicDataHtml}
                 </div>
@@ -842,6 +843,9 @@ app.get("/admin/registration/:registrationId", checkAdmin, async (req, res) => {
                                 <div><dt class="font-semibold text-gray-800">البريد الإلكتروني</dt><dd class="text-gray-600">${
                                   row.email
                                 }</dd></div>
+                                <div><dt class="font-semibold text-gray-800">رقم الهوية</dt><dd class="text-gray-600">${
+            row.national_id || "غير متوفر"
+          }</dd></div>
                                 <div><dt class="font-semibold text-gray-800">حالة التذكرة</dt><dd class="font-bold ${
                                   row.status === "USED"
                                     ? "text-green-600"
