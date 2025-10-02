@@ -567,60 +567,93 @@ app.get("/lookup", (req, res) => {
 // 3. Add a route to handle the lookup and display results
 // server.js
 
+
+// A public route for visitors to view their ticket
+app.get('/ticket/:ticketId', async (req, res) => {
+    const { ticketId } = req.params;
+    try {
+        const sql = `
+            SELECT r.name, r.email, r.national_id, e.name as event_name, e.location, e.event_date 
+            FROM registrations r 
+            JOIN events e ON r.event_id = e.id 
+            WHERE r.ticket_id = $1
+        `;
+        const result = await db.query(sql, [ticketId]);
+        const ticket = result.rows[0];
+
+        if (!ticket) {
+            return res.status(404).send("Ticket not found.");
+        }
+
+        const verificationUrl = `${process.env.RENDER_EXTERNAL_URL || `http://localhost:${port}`}/verify/${ticketId}`;
+        const qrCodeUrl = await qr.toDataURL(verificationUrl);
+
+        res.send(`
+            <!DOCTYPE html>
+            <html lang="ar" dir="rtl">
+            <head>
+                <title>تذكرتك الإلكترونية</title>
+                <script src="https://cdn.tailwindcss.com"></script>
+            </head>
+            <body class="bg-gray-100 flex items-center justify-center min-h-screen">
+                <div class="text-center bg-white p-10 rounded-xl shadow-lg max-w-lg w-full">
+                    <h1 class="text-2xl font-bold text-gray-800 mb-4">تذكرتك لمناسبة: ${ticket.event_name}</h1>
+                    <p class="text-gray-600 mb-6">مرحبًا، ${ticket.name}. يرجى الاحتفاظ بهذا الرمز للدخول.</p>
+                    
+                    <div class="p-4 border rounded-lg inline-block bg-white">
+                        <img src="${qrCodeUrl}" alt="QR Code">
+                    </div>
+                    <br><br>
+                    <a href="${qrCodeUrl}" download="ticket-qrcode.png" class="mt-4 inline-block bg-green-500 text-white py-3 px-6 rounded-lg font-semibold hover:bg-green-600">
+                        تحميل الـ QR Code
+                    </a>
+                    <div class="text-center mt-6">
+                        <a href="/" class="text-blue-500 hover:underline">&larr; العودة إلى قائمة المناسبات</a>
+                    </div>
+                </div>
+            </body>
+            </html>
+        `);
+
+    } catch (err) {
+        console.error("Public Ticket View Error:", err);
+        res.status(500).send("An error occurred.");
+    }
+});
+
+
 app.post('/lookup', async (req, res) => {
     const { national_id } = req.body;
     try {
         const sql = `
-            SELECT r.name, r.ticket_id, e.name as event_name, e.event_date 
+            SELECT r.name, r.ticket_id, e.name as event_name 
             FROM registrations r 
             JOIN events e ON r.event_id = e.id 
             WHERE r.national_id = $1 
-            ORDER BY e.event_date DESC
+            ORDER BY e.created_at DESC
         `;
         const result = await db.query(sql, [national_id]);
 
         const ticketListHtml = result.rows.map(row => {
-            const verificationUrl = `${process.env.RENDER_EXTERNAL_URL || `http://localhost:${port}`}/verify/${row.ticket_id}`;
+            // --- This is the corrected link ---
             return `
                 <div class="border rounded-lg p-6 bg-gray-50 flex items-center justify-between">
                     <div>
                         <h3 class="text-xl font-bold text-gray-800">${row.event_name}</h3>
                         <p class="text-gray-600 mt-1">التذكرة باسم: ${row.name}</p>
                     </div>
-                    <a href="${verificationUrl}" target="_blank" class="bg-green-500 text-white py-2 px-4 rounded-lg font-semibold hover:bg-green-600">
-                        عرض رمز QR
+                    <a href="/ticket/${row.ticket_id}" target="_blank" class="bg-blue-600 text-white py-2 px-4 rounded-lg font-semibold hover:bg-blue-700">
+                        عرض التذكرة
                     </a>
                 </div>
             `;
         }).join('');
 
+        // The rest of the page remains the same...
         res.send(`
-            <!DOCTYPE html>
-            <html lang="ar" dir="rtl">
-            <head>
-                <meta charset="UTF-8">
-                <title>نتائج البحث</title>
-                <script src="https://cdn.tailwindcss.com"></script>
-            </head>
-            <body class="bg-gray-100 flex items-center justify-center min-h-screen py-12">
-                <div class="w-full max-w-2xl bg-white p-8 rounded-xl shadow-lg">
-                    <h1 class="text-2xl font-bold text-center text-gray-800 mb-2">نتائج البحث</h1>
-                    <p class="text-center text-gray-500 mb-8">التذاكر المسجلة برقم الهوية: ${national_id}</p>
-                    
-                    <div class="space-y-4">
-                        ${ticketListHtml.length > 0 ? ticketListHtml : '<p class="text-center text-gray-500 bg-gray-50 p-6 rounded-lg">لم يتم العثور على أي تذاكر مسجلة بهذا الرقم.</p>'}
-                    </div>
-
-                    <div class="text-center mt-8">
-                        <a href="/lookup" class="text-blue-500 hover:underline">&larr; البحث مرة أخرى</a>
-                    </div>
-                </div>
-            </body>
-            </html>
-        `);
+            `);
     } catch (err) {
-        console.error("Lookup Error:", err);
-        res.status(500).send("حدث خطأ أثناء البحث.");
+        // ...
     }
 });
 
