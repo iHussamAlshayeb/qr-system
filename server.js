@@ -61,34 +61,58 @@ const checkScanner = (req, res, next) => {
 
 // Homepage to list all events
 app.get("/", async (req, res) => {
-    try {
-        const result = await db.query(`SELECT * FROM events WHERE is_active = TRUE ORDER BY created_at DESC`);
-        
-        const eventsGridHtml = result.rows.map(event => {
-            const eventDate = event.event_date 
-                ? new Date(event.event_date).toLocaleString('ar-SA', { day: 'numeric', month: 'long', year: 'numeric' }) 
-                : '';
+  try {
+    const result = await db.query(
+      `SELECT * FROM events WHERE is_active = TRUE ORDER BY created_at DESC`
+    );
 
-            return `
+    const eventsGridHtml = result.rows
+      .map((event) => {
+        const eventDate = event.event_date
+          ? new Date(event.event_date).toLocaleString("ar-SA", {
+              day: "numeric",
+              month: "long",
+              year: "numeric",
+            })
+          : "";
+
+        return `
                 <div class="bg-white rounded-xl shadow-md overflow-hidden flex flex-col transform hover:-translate-y-1 transition-transform duration-300">
                     <div class="p-6 flex-grow">
-                        <h3 class="text-xl font-bold text-gray-800 mb-2">${event.name}</h3>
+                        <h3 class="text-xl font-bold text-gray-800 mb-2">${
+                          event.name
+                        }</h3>
                         <div class="space-y-2 text-sm text-gray-600 mb-4">
-                            ${event.description ? `<p>${event.description}</p>` : ''}
-                            ${event.location ? `<p><span class="font-semibold">الموقع:</span> ${event.location}</p>` : ''}
-                            ${eventDate ? `<p><span class="font-semibold">التاريخ:</span> ${eventDate}</p>` : ''}
+                            ${
+                              event.description
+                                ? `<p>${event.description}</p>`
+                                : ""
+                            }
+                            ${
+                              event.location
+                                ? `<p><span class="font-semibold">الموقع:</span> ${event.location}</p>`
+                                : ""
+                            }
+                            ${
+                              eventDate
+                                ? `<p><span class="font-semibold">التاريخ:</span> ${eventDate}</p>`
+                                : ""
+                            }
                         </div>
                     </div>
                     <div class="p-6 bg-gray-50">
-                        <a href="/register/${event.id}" class="w-full text-center block bg-blue-600 text-white py-2 px-5 rounded-lg font-semibold hover:bg-blue-700">
+                        <a href="/register/${
+                          event.id
+                        }" class="w-full text-center block bg-blue-600 text-white py-2 px-5 rounded-lg font-semibold hover:bg-blue-700">
                             سجل الآن
                         </a>
                     </div>
                 </div>
             `;
-        }).join('');
+      })
+      .join("");
 
-        res.send(`
+    res.send(`
             <!DOCTYPE html>
             <html lang="ar" dir="rtl">
             <head>
@@ -104,19 +128,22 @@ app.get("/", async (req, res) => {
                     </div>
                     
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                        ${eventsGridHtml.length > 0 ? eventsGridHtml : '<p class="text-center text-gray-500 col-span-3">لا توجد مناسبات متاحة حاليًا.</p>'}
+                        ${
+                          eventsGridHtml.length > 0
+                            ? eventsGridHtml
+                            : '<p class="text-center text-gray-500 col-span-3">لا توجد مناسبات متاحة حاليًا.</p>'
+                        }
                     </div>
                 </div>
                 ${footerHtml}
             </body>
             </html>
         `);
-    } catch (err) {
-        console.error("Homepage Error:", err);
-        res.status(500).send("Error fetching events.");
-    }
+  } catch (err) {
+    console.error("Homepage Error:", err);
+    res.status(500).send("Error fetching events.");
+  }
 });
-
 
 // Registration page for a specific event
 app.get("/register/:eventId", async (req, res) => {
@@ -222,7 +249,16 @@ app.post("/register/:eventId", async (req, res) => {
     );
 
     if (checkResult.rows.length > 0) {
-      return res.status(400).send(`... HTML for already registered error ...`);
+      return res.status(400).send(`
+                <body class="bg-gray-100 flex items-center justify-center min-h-screen">
+                <script src="https://cdn.tailwindcss.com"></script>
+                <div class="text-center bg-white p-10 rounded-xl shadow-lg">
+                    <h1 class="text-3xl font-bold text-yellow-700 mb-4">تنبيه</h1>
+                    <p class="text-gray-600 mb-6">هذا البريد الإلكتروني مسجل بالفعل في هذه المناسبة.</p>
+                    <a href="/register/${eventId}" class="text-blue-500 hover:underline">العودة إلى صفحة التسجيل</a>
+                </div>
+                </body>
+            `);
     }
 
     // Insert the new registration, now including the national_id
@@ -351,10 +387,18 @@ app.get("/verify/:ticketId", checkScanner, async (req, res) => {
                 <h1 class="text-3xl font-bold text-green-700 mt-4">تم التحقق بنجاح</h1>
                 <p class="text-gray-600 mt-2">مرحبًا بك!</p>
                 <div class="mt-6 text-left bg-gray-50 p-4 rounded-lg border divide-y">
-                    <div class="py-2"><p class="text-sm font-semibold text-gray-700">المناسبة</p><p class="text-gray-900">${row.event_name}</p></div>
-                    <div class="py-2"><p class="text-sm font-semibold text-gray-700">الاسم</p><p class="text-gray-900">${row.name}</p></div>
-                    <div class="py-2"><p class="text-sm font-semibold text-gray-700">رقم الهوية</p><p class="text-gray-900">${row.national_id || 'غير متوفر'}</p></div>
-                    <div class="py-2"><p class="text-sm font-semibold text-gray-700">البريد الإلكتروني</p><p class="text-gray-900">${row.email}</p></div>
+                    <div class="py-2"><p class="text-sm font-semibold text-gray-700">المناسبة</p><p class="text-gray-900">${
+                      row.event_name
+                    }</p></div>
+                    <div class="py-2"><p class="text-sm font-semibold text-gray-700">الاسم</p><p class="text-gray-900">${
+                      row.name
+                    }</p></div>
+                    <div class="py-2"><p class="text-sm font-semibold text-gray-700">رقم الهوية</p><p class="text-gray-900">${
+                      row.national_id || "غير متوفر"
+                    }</p></div>
+                    <div class="py-2"><p class="text-sm font-semibold text-gray-700">البريد الإلكتروني</p><p class="text-gray-900">${
+                      row.email
+                    }</p></div>
                     ${dynamicDataHtml}
                 </div>
             </div>
@@ -543,28 +587,29 @@ app.get("/lookup", (req, res) => {
 // 3. Add a route to handle the lookup and display results
 // server.js
 
-
 // A public route for visitors to view their ticket
-app.get('/ticket/:ticketId', async (req, res) => {
-    const { ticketId } = req.params;
-    try {
-        const sql = `
+app.get("/ticket/:ticketId", async (req, res) => {
+  const { ticketId } = req.params;
+  try {
+    const sql = `
             SELECT r.name, r.email, r.national_id, e.name as event_name, e.location, e.event_date 
             FROM registrations r 
             JOIN events e ON r.event_id = e.id 
             WHERE r.ticket_id = $1
         `;
-        const result = await db.query(sql, [ticketId]);
-        const ticket = result.rows[0];
+    const result = await db.query(sql, [ticketId]);
+    const ticket = result.rows[0];
 
-        if (!ticket) {
-            return res.status(404).send("Ticket not found.");
-        }
+    if (!ticket) {
+      return res.status(404).send("Ticket not found.");
+    }
 
-        const verificationUrl = `${process.env.RENDER_EXTERNAL_URL || `http://localhost:${port}`}/verify/${ticketId}`;
-        const qrCodeUrl = await qr.toDataURL(verificationUrl);
+    const verificationUrl = `${
+      process.env.RENDER_EXTERNAL_URL || `http://localhost:${port}`
+    }/verify/${ticketId}`;
+    const qrCodeUrl = await qr.toDataURL(verificationUrl);
 
-        res.send(`
+    res.send(`
             <!DOCTYPE html>
             <html lang="ar" dir="rtl">
             <head>
@@ -590,29 +635,28 @@ app.get('/ticket/:ticketId', async (req, res) => {
             </body>
             </html>
         `);
-
-    } catch (err) {
-        console.error("Public Ticket View Error:", err);
-        res.status(500).send("An error occurred.");
-    }
+  } catch (err) {
+    console.error("Public Ticket View Error:", err);
+    res.status(500).send("An error occurred.");
+  }
 });
 
-
-app.post('/lookup', async (req, res) => {
-    const { national_id } = req.body;
-    try {
-        const sql = `
+app.post("/lookup", async (req, res) => {
+  const { national_id } = req.body;
+  try {
+    const sql = `
             SELECT r.name, r.ticket_id, e.name as event_name 
             FROM registrations r 
             JOIN events e ON r.event_id = e.id 
             WHERE r.national_id = $1 
             ORDER BY e.created_at DESC
         `;
-        const result = await db.query(sql, [national_id]);
+    const result = await db.query(sql, [national_id]);
 
-        const ticketListHtml = result.rows.map(row => {
-            // --- This is the corrected link ---
-            return `
+    const ticketListHtml = result.rows
+      .map((row) => {
+        // --- This is the corrected link ---
+        return `
                 <div class="border rounded-lg p-6 bg-gray-50 flex items-center justify-between">
                     <div>
                         <h3 class="text-xl font-bold text-gray-800">${row.event_name}</h3>
@@ -623,10 +667,10 @@ app.post('/lookup', async (req, res) => {
                     </a>
                 </div>
             `;
-        }).join('');
+      })
+      .join("");
 
-        
-        res.send(`
+    res.send(`
             <!DOCTYPE html>
             <html lang="ar" dir="rtl">
             <head>
@@ -640,7 +684,11 @@ app.post('/lookup', async (req, res) => {
                     <p class="text-center text-gray-500 mb-8">التذاكر المسجلة برقم الهوية: ${national_id}</p>
                     
                     <div class="space-y-4">
-                        ${ticketListHtml.length > 0 ? ticketListHtml : '<p class="text-center text-gray-500 bg-gray-50 p-6 rounded-lg">لم يتم العثور على أي تذاكر مسجلة بهذا الرقم.</p>'}
+                        ${
+                          ticketListHtml.length > 0
+                            ? ticketListHtml
+                            : '<p class="text-center text-gray-500 bg-gray-50 p-6 rounded-lg">لم يتم العثور على أي تذاكر مسجلة بهذا الرقم.</p>'
+                        }
                     </div>
 
                     <div class="text-center mt-8">
@@ -650,10 +698,10 @@ app.post('/lookup', async (req, res) => {
             </body>
             </html>
         `);
-    } catch (err) {
-        console.error("Lookup Error:", err);
-        res.status(500).send("حدث خطأ أثناء البحث.");
-    }
+  } catch (err) {
+    console.error("Lookup Error:", err);
+    res.status(500).send("حدث خطأ أثناء البحث.");
+  }
 });
 
 // مسار لتغيير حالة المناسبة (نشط/غير نشط)
@@ -892,8 +940,8 @@ app.get("/admin/registration/:registrationId", checkAdmin, async (req, res) => {
                                   row.email
                                 }</dd></div>
                                 <div><dt class="font-semibold text-gray-800">رقم الهوية</dt><dd class="text-gray-600">${
-            row.national_id || "غير متوفر"
-          }</dd></div>
+                                  row.national_id || "غير متوفر"
+                                }</dd></div>
                                 <div><dt class="font-semibold text-gray-800">حالة التذكرة</dt><dd class="font-bold ${
                                   row.status === "USED"
                                     ? "text-green-600"
