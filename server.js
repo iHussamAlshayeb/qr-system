@@ -1293,7 +1293,7 @@ app.get("/scanner", checkScanner, (req, res) => {
                 <p class="mt-4 font-semibold text-blue-600">الرجاء استخدام كاميرا جوالك الأساسية لمسح رموز QR.</p>
                 
                 <div class="mt-8">
-                    <a href="/logout" class="w-full bg-red-500 text-white py-3 rounded-lg font-semibold hover:bg-red-600 transition duration-300">تسجيل الخروج</a>
+                    <a href="/logout" class="w-full bg-red-500 text-white py-3 px-3 rounded-lg font-semibold hover:bg-red-600 transition duration-300">تسجيل الخروج</a>
                 </div>
             </div>
              ${footerHtml}
