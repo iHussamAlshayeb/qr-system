@@ -568,7 +568,7 @@ app.post("/admin/events/add", checkAdmin, async (req, res) => {
       [eventId]
     );
     await db.query(
-      `INSERT INTO form_fields (event_id, label, name, type, required) VALUES ($1, 'رقم الهوية الوطنية', 'national_id', 'number', TRUE)`,
+      `INSERT INTO form_fields (event_id, label, name, type, required) VALUES ($1, 'رقم الهوية الوطنية', 'national_id', 'text', TRUE)`,
       [eventId]
     );
 
