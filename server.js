@@ -559,14 +559,14 @@ app.post("/admin/events/add", checkAdmin, async (req, res) => {
     const eventId = result.rows[0].id;
 
     // Add default fields for the new event
-    await db.query(
-      `INSERT INTO form_fields (event_id, label, name, type, required) VALUES ($1, 'الاسم الكامل', 'name', 'text', TRUE)`,
-      [eventId]
-    );
-    await db.query(
-      `INSERT INTO form_fields (event_id, label, name, type, required) VALUES ($1, 'البريد الإلكتروني', 'email', 'email', TRUE)`,
-      [eventId]
-    );
+    // await db.query(
+    //   `INSERT INTO form_fields (event_id, label, name, type, required) VALUES ($1, 'الاسم الكامل', 'name', 'text', TRUE)`,
+    //   [eventId]
+    // );
+    // await db.query(
+    //   `INSERT INTO form_fields (event_id, label, name, type, required) VALUES ($1, 'البريد الإلكتروني', 'email', 'email', TRUE)`,
+    //   [eventId]
+    // );
     await db.query(
       `INSERT INTO form_fields (event_id, label, name, type, required) VALUES ($1, 'رقم الهوية الوطنية', 'national_id', 'text', TRUE)`,
       [eventId]
