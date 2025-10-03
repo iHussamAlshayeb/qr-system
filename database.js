@@ -35,7 +35,7 @@ const setupDatabase = async () => {
         ticket_id TEXT NOT NULL UNIQUE,
         status TEXT NOT NULL DEFAULT 'UNUSED',
         created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE (event_id, email) -- هذا هو القانون الجديد: التركيبة فريدة
+        UNIQUE (event_id, email, national_id) -- هذا هو القانون الجديد: التركيبة فريدة
       )
     `);
     // --- نهاية التعديل ---
