@@ -7,6 +7,7 @@ const qr = require("qrcode");
 const session = require("express-session");
 const fs = require("fs");
 const bcrypt = require("bcrypt");
+const xlsx = require('xlsx'); // Add this at the top with your other imports
 // const sgMail = require('@sendgrid/mail');
 
 const footerHtml = `
@@ -831,6 +832,9 @@ app.get("/admin/dashboard/:eventId", checkAdmin, async (req, res) => {
                     <a href="/admin/events" class="inline-block mb-8 bg-gray-200 text-gray-700 py-2 px-4 rounded-lg font-semibold hover:bg-gray-300 transition duration-300">
                         &larr; العودة إلى كل المناسبات
                     </a>
+                     <a href="/admin/dashboard/${eventId}/export" class="bg-green-600 text-white py-2 px-5 rounded-lg font-semibold hover:bg-green-700">
+                    تصدير إلى Excel
+                </a>
                     <h1 class="text-3xl font-bold text-center text-gray-800">لوحة تحكم لـ: ${event.name}</h1>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6 my-8">
                         <div class="bg-blue-50 p-6 rounded-lg text-center"><h3 class="text-lg font-semibold text-blue-800">إجمالي المسجلين</h3><p class="text-4xl font-bold text-blue-600 mt-2">${totalRow.total}</p></div>
@@ -876,6 +880,60 @@ app.get("/admin/dashboard/:eventId", checkAdmin, async (req, res) => {
     console.error("Dashboard Error:", err);
     res.status(500).send("Error loading dashboard.");
   }
+});
+
+// server.js
+
+// ... your other routes
+
+// New route to export attendees to Excel
+app.get('/admin/dashboard/:eventId/export', checkAdmin, async (req, res) => {
+    const { eventId } = req.params;
+    try {
+        // 1. Fetch all registrations for the event
+        const result = await db.query(
+            `SELECT name, email, national_id, status, created_at, dynamic_data 
+             FROM registrations 
+             WHERE event_id = $1 
+             ORDER BY created_at ASC`,
+            [eventId]
+        );
+        const registrations = result.rows;
+
+        if (registrations.length === 0) {
+            return res.send("No registrations to export.");
+        }
+
+        // 2. Prepare the data for the worksheet
+        const dataForExcel = registrations.map(reg => {
+            const dynamicData = reg.dynamic_data || {};
+            return {
+                'الاسم الكامل': reg.name,
+                'البريد الإلكتروني': reg.email,
+                'رقم الهوية': reg.national_id,
+                'الحالة': reg.status === 'USED' ? 'حضر' : 'لم يحضر',
+                'وقت التسجيل': new Date(reg.created_at).toLocaleString('ar-SA'),
+                ...dynamicData // Spread the dynamic fields as separate columns
+            };
+        });
+
+        // 3. Create a new workbook and add the data
+        const worksheet = xlsx.utils.json_to_sheet(dataForExcel);
+        const workbook = xlsx.utils.book_new();
+        xlsx.utils.book_append_sheet(workbook, worksheet, 'Attendees');
+
+        // 4. Set headers to prompt a file download
+        res.setHeader('Content-Disposition', 'attachment; filename="attendees_export.xlsx"');
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+
+        // 5. Send the file to the user
+        const buffer = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+        res.send(buffer);
+
+    } catch (err) {
+        console.error("Export Error:", err);
+        res.status(500).send("Error exporting data.");
+    }
 });
 
 // 1. عرض صفحة تفاصيل المسجل
