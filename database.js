@@ -18,6 +18,9 @@ const setupDatabase = async () => {
         description TEXT,
         location TEXT,
         event_date TIMESTAMPTZ,
+        event_end_date TIMESTAMPTZ,
+        image_url TEXT,
+        background_image_url TEXT,
         is_active BOOLEAN DEFAULT TRUE,
         created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
       )

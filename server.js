@@ -7,7 +7,7 @@ const qr = require("qrcode");
 const session = require("express-session");
 const fs = require("fs");
 const bcrypt = require("bcrypt");
-const xlsx = require('xlsx'); // Add this at the top with your other imports
+const xlsx = require("xlsx"); // Add this at the top with your other imports
 // const sgMail = require('@sendgrid/mail');
 
 const footerHtml = `
@@ -78,11 +78,13 @@ app.get("/", async (req, res) => {
           : "";
 
         return `
-                <div class="bg-white rounded-xl shadow-md overflow-hidden flex flex-col transform hover:-translate-y-1 transition-transform duration-300">
-                    <div class="p-6 flex-grow">
-                        <h3 class="text-xl font-bold text-gray-800 mb-2">${
-                          event.name
-                        }</h3>
+                <<div class="bg-white rounded-xl shadow-md overflow-hidden transform hover:-translate-y-1 transition-transform">
+        ${event.image_url ? `<img class="h-40 w-full object-cover" src="${event.image_url}" alt="${event.name}">` : ''}
+        <div class="p-6">
+            <h3 class="text-xl font-bold">${event.name}</h3>
+            <a href="/register/${event.id}" class="mt-4 inline-block bg-blue-600 text-white py-2 px-5 rounded-lg">سجل الآن</a>
+        </div>
+    </div>
                         <div class="space-y-2 text-sm text-gray-600 mb-4">
                             ${
                               event.description
@@ -227,6 +229,10 @@ app.get("/register/:eventId", async (req, res) => {
         .replace("{-- EVENT_DETAILS --}", eventDetailsHtml) // New replacement
         .replace("{-- DYNAMIC_FIELDS --}", dynamicFieldsHtml)
         .replace('action="/register"', `action="/register/${eventId}"`);
+        // Inject the background image style
+        if (event.background_image_url) {
+            finalHtml = finalHtml.replace('<body class="', `<body style="background-image: url(${event.background_image_url}); background-size: cover; background-position: center;" class="`);
+        }
       res.send(finalHtml);
     });
   } catch (err) {
@@ -498,7 +504,10 @@ app.get("/admin/events", checkAdmin, async (req, res) => {
       .map(
         (event) => `
             <tr class="${event.is_active ? "" : "bg-gray-200 opacity-60"}">
-                <td class="py-3 px-4">${event.name}</td>
+                <td class="py-3 px-4">
+                ${event.name}
+                <span class="closing-soon-badge" style="display: none;"></span>
+                </td>
                 <td class="py-3 px-4">
                     <span class="px-2 py-1 font-semibold text-xs rounded-full ${
                       event.is_active
@@ -538,22 +547,58 @@ app.get("/admin/events", checkAdmin, async (req, res) => {
       "utf8",
       (err, htmlData) => {
         if (err) throw err;
-        res.send(htmlData.replace("{-- EVENTS_TABLE_ROWS --}", eventRows));
+        let finalHtml = htmlData.replace(
+          "{-- EVENTS_TABLE_ROWS --}",
+          eventRows
+        );
+
+        // Add the JavaScript directly to the page
+        finalHtml = finalHtml.replace(
+          "</body>",
+          `
+                <script>
+                    document.addEventListener('DOMContentLoaded', function() {
+                        const closingSoonDays = 5; // <-- You can customize this number
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+
+                        const eventRows = document.querySelectorAll('.event-row');
+                        eventRows.forEach(row => {
+                            const endDateStr = row.dataset.endDate;
+                            if (!endDateStr) return;
+
+                            const endDate = new Date(endDateStr);
+                            endDate.setHours(0, 0, 0, 0);
+
+                            const timeDiff = endDate.getTime() - today.getTime();
+                            const dayDiff = Math.ceil(timeDiff / (1000 * 3600 * 24));
+
+                            if (dayDiff >= 0 && dayDiff <= closingSoonDays) {
+                                const badge = row.querySelector('.closing-soon-badge');
+                                badge.textContent = ' (ستنتهي قريبا)';
+                                badge.className = 'closing-soon-badge text-sm font-bold text-red-600';
+                                badge.style.display = 'inline';
+                            }
+                        });
+                    });
+                </script>
+            </body>`
+        );
+        res.send(finalHtml);
       }
     );
   } catch (err) {
-    res.status(500).send("خطأ في جلب المناسبات.");
+    res.status(500).send("Error fetching events.");
   }
 });
 
 // Add a new event
 app.post("/admin/events/add", checkAdmin, async (req, res) => {
-  const { name, description, location, event_date } = req.body;
+  const { name, description, location, event_date, event_end_date,image_url, background_image_url } = req.body;
   try {
-    // This line correctly defines the 'result' variable
-    const result = await db.query(
-      `INSERT INTO events (name, description, location, event_date) VALUES ($1, $2, $3, $4) RETURNING id`,
-      [name, description, location, event_date]
+    await db.query(
+      `INSERT INTO events (name, description, location, event_date, event_end_date,image_url, background_image_url) VALUES ($1, $2, $3, $4, $5,$6,$7)`,
+      [name, description, location, event_date, event_end_date,image_url, background_image_url]
     );
 
     // Now this line will work because 'result' is defined
@@ -887,53 +932,58 @@ app.get("/admin/dashboard/:eventId", checkAdmin, async (req, res) => {
 // ... your other routes
 
 // New route to export attendees to Excel
-app.get('/admin/dashboard/:eventId/export', checkAdmin, async (req, res) => {
-    const { eventId } = req.params;
-    try {
-        // 1. Fetch all registrations for the event
-        const result = await db.query(
-            `SELECT name, email, national_id, status, created_at, dynamic_data 
+app.get("/admin/dashboard/:eventId/export", checkAdmin, async (req, res) => {
+  const { eventId } = req.params;
+  try {
+    // 1. Fetch all registrations for the event
+    const result = await db.query(
+      `SELECT name, email, national_id, status, created_at, dynamic_data 
              FROM registrations 
              WHERE event_id = $1 
              ORDER BY created_at ASC`,
-            [eventId]
-        );
-        const registrations = result.rows;
+      [eventId]
+    );
+    const registrations = result.rows;
 
-        if (registrations.length === 0) {
-            return res.send("No registrations to export.");
-        }
-
-        // 2. Prepare the data for the worksheet
-        const dataForExcel = registrations.map(reg => {
-            const dynamicData = reg.dynamic_data || {};
-            return {
-                'الاسم الكامل': reg.name,
-                'البريد الإلكتروني': reg.email,
-                'رقم الهوية': reg.national_id,
-                'الحالة': reg.status === 'USED' ? 'حضر' : 'لم يحضر',
-                'وقت التسجيل': new Date(reg.created_at).toLocaleString('ar-SA'),
-                ...dynamicData // Spread the dynamic fields as separate columns
-            };
-        });
-
-        // 3. Create a new workbook and add the data
-        const worksheet = xlsx.utils.json_to_sheet(dataForExcel);
-        const workbook = xlsx.utils.book_new();
-        xlsx.utils.book_append_sheet(workbook, worksheet, 'Attendees');
-
-        // 4. Set headers to prompt a file download
-        res.setHeader('Content-Disposition', 'attachment; filename="attendees_export.xlsx"');
-        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-
-        // 5. Send the file to the user
-        const buffer = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
-        res.send(buffer);
-
-    } catch (err) {
-        console.error("Export Error:", err);
-        res.status(500).send("Error exporting data.");
+    if (registrations.length === 0) {
+      return res.send("No registrations to export.");
     }
+
+    // 2. Prepare the data for the worksheet
+    const dataForExcel = registrations.map((reg) => {
+      const dynamicData = reg.dynamic_data || {};
+      return {
+        "الاسم الكامل": reg.name,
+        "البريد الإلكتروني": reg.email,
+        "رقم الهوية": reg.national_id,
+        الحالة: reg.status === "USED" ? "حضر" : "لم يحضر",
+        "وقت التسجيل": new Date(reg.created_at).toLocaleString("ar-SA"),
+        ...dynamicData, // Spread the dynamic fields as separate columns
+      };
+    });
+
+    // 3. Create a new workbook and add the data
+    const worksheet = xlsx.utils.json_to_sheet(dataForExcel);
+    const workbook = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(workbook, worksheet, "Attendees");
+
+    // 4. Set headers to prompt a file download
+    res.setHeader(
+      "Content-Disposition",
+      'attachment; filename="attendees_export.xlsx"'
+    );
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+
+    // 5. Send the file to the user
+    const buffer = xlsx.write(workbook, { type: "buffer", bookType: "xlsx" });
+    res.send(buffer);
+  } catch (err) {
+    console.error("Export Error:", err);
+    res.status(500).send("Error exporting data.");
+  }
 });
 
 // 1. عرض صفحة تفاصيل المسجل
